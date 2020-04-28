@@ -1,0 +1,103 @@
+{
+    "name": "@ui-js/grok",
+    "version": "1.0.0",
+    "description": "A tool to build beautiful documentation from TypeScript declaration files",
+    "publishConfig": {
+        "access": "public"
+    },
+    "keywords": [
+        "TypeScript",
+        "documentation",
+        "tool"
+    ],
+    "license": "MIT",
+    "files": [
+        "bin/**"
+    ],
+    "engines": {
+        "npm": ">=6.13",
+        "node": ">=10.0"
+    },
+    "devDependencies": {
+        "@cortex-js/prettier-config": "^1.0.0",
+        "@rollup/plugin-commonjs": "^11.1.0",
+        "@rollup/plugin-node-resolve": "^7.1.1",
+        "@typescript-eslint/eslint-plugin": "^2.30.0",
+        "@typescript-eslint/parser": "^2.30.0",
+        "eslint": "^6.8.0",
+        "eslint-config-prettier": "^6.10.1",
+        "eslint-plugin-prettier": "^3.1.2",
+        "husky": "^4.2.3",
+        "jest": "^25.5.0",
+        "lint-staged": "^10.2.0",
+        "prettier": "^2.0.3",
+        "rollup": "^2.7.3",
+        "rollup-plugin-copy": "^3.3.0",
+        "rollup-plugin-eslint": "^7.0.0",
+        "rollup-plugin-terser": "^5.3.0",
+        "rollup-plugin-typescript2": "^0.27.0"
+    },
+    "dependencies": {
+        "chalk": "^4.0.0",
+        "chokidar": "^3.3.1",
+        "ci-info": "^2.0.0",
+        "cosmiconfig": "^6.0.0",
+        "fs-extra": "^9.0.0",
+        "glob": "^7.1.6",
+        "highlight.js": "^10.0.1",
+        "markdown-it": "^10.0.0",
+        "markdown-it-deflist": "^2.0.3",
+        "please-upgrade-node": "^3.2.0",
+        "resolve-from": "^5.0.0",
+        "typedoc": "^0.17.6",
+        "typescript": "^3.8.3",
+        "update-notifier": "^4.1.0",
+        "yaml": "^1.8.3",
+        "yargs": "^15.3.1"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/ui-js/grok.git"
+    },
+    "bin": {
+        "grok": "./bin/grok-cli"
+    },
+    "scripts": {
+        "build": "bash ./scripts/build.sh dev",
+        "build:prod": "bash ./scripts/build.sh production",
+        "grok": "node ./bin/grok",
+        "clean": "bash ./scripts/clean.sh",
+        "coverage": "bash ./scripts/test.sh coverage",
+        "deploy": "",
+        "lint": "prettier --ignore-path ./.prettierignore --write \"**/*.{ts,js,css,md,yml,json}\" \"!vendor/**\"",
+        "snapshot": "bash ./scripts/test.sh snapshot",
+        "test": "bash ./scripts/test.sh",
+        "watch": "rollup --config ./config/rollup.config.js --watch"
+    },
+    "prettier": "@cortex-js/prettier-config",
+    "husky": {
+        "hooks": {
+            "pre-commit": "lint-staged"
+        }
+    },
+    "lint-staged": {
+        "**/*.ts": [
+            "eslint --fix",
+            "git add"
+        ],
+        "*.{js,css,json,md}": [
+            "prettier --write",
+            "git add"
+        ]
+    },
+    "jest": {
+        "roots": [
+            "<rootDir>/test",
+            "<rootDir>/bin"
+        ],
+        "coverageReporters": [
+            "lcov"
+        ],
+        "coverageDirectory": "./coverage"
+    }
+}
