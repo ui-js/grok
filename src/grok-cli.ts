@@ -127,6 +127,10 @@ function buildOptions(yargs): void {
             type: 'path',
         })
         .normalize('path')
+        .option('apiName', {
+            describe: 'Name of the API/Library/Module being documented',
+            type: 'string',
+        })
         .option('outFile', {
             describe: 'Save output to file (in outDir)',
             type: 'path',
