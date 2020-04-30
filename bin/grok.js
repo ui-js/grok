@@ -270,7 +270,7 @@ function renderPermalinkAnchor(permalink) {
     console.assert(!permalink.document);
     return ('<a class="permalink" href="#' +
         encodeURIComponent(permalink.anchor) +
-        '" title="Permalink"><span class="sr-only">Permalink</span>' +
+        '" title="Permalink"><span class="sr-only"> Permalink </span>' +
         '<svg><use xlink:href="#link"></use></svg>' +
         '</a>');
 }
@@ -280,7 +280,7 @@ function renderIndex(node, title, categories, options) {
     let result = '';
     if (title) {
         result += '\n\n<h3>';
-        result += '<em>' + getQualifiedName(node) + '</em>';
+        result += '<em>' + getQualifiedName(node) + ' </em>';
         result += `${title}</h3>\n`;
     }
     if (categories.length === 1 && categories[0].children.length <= 1) {
@@ -361,7 +361,7 @@ function renderFlags(node, style = 'block') {
         readonly: 'read only',
     };
     result += Object.keys(TAGS)
-        .map((x) => (hasTag(node, x) ? span(TAG_NAME[x] || x, TAGS[x]) : ''))
+        .map((x) => hasTag(node, x) ? span(TAG_NAME[x] || x, TAGS[x]) : '')
         .join('');
     return result
         ? style === 'block'
@@ -787,13 +787,13 @@ function renderMethodCard(node) {
     }
     else if (parent && parent.kind === 1) {
         shortName = `<strong>${node.name}</strong>`;
-        displayName = `<em>module ${parent.name}</em>` + shortName;
+        displayName = `<em>module ${parent.name} </em>` + shortName;
     }
     else if (parent && (parent.kind & (2 | 4 | 128 | 256)) !== 0) {
         shortName = `<strong>${node.name}</strong>`;
         if (parent.kind === 2 && /^"(.*)"$/.test(parent.name)) {
             displayName =
-                `<em>module ${trimQuotes(parent.name)}</em>` + shortName;
+                `<em>module ${trimQuotes(parent.name)} </em>` + shortName;
         }
         else {
             displayName = parent.name + '.' + shortName;
@@ -872,7 +872,7 @@ function renderClassSection(node) {
     result += '>';
     const parent = getParent(node);
     if (parent) {
-        result += '<em>' + getQualifiedName(parent) + '</em>';
+        result += '<em>' + getQualifiedName(parent) + ' </em>';
     }
     result += '<span>' + getQualifiedName(node) + '</span>';
     result += renderPermalinkAnchor(permalink);
@@ -930,7 +930,7 @@ function renderClassCard(node) {
     result += node.children
         .map((x) => {
         let permalink = makePermalink(x);
-        let r = encodeURIComponent(permalink.anchor) + '">';
+        let r = encodeURIComponent(permalink.anchor) + '"><code>';
         if (x.kind === 2048) {
             r +=
                 x.signatures
@@ -945,11 +945,11 @@ function renderClassCard(node) {
                     sigResult +=
                         renderPermalinkAnchor(permalink) +
                             render(signature) +
-                            '</dt><dd>' +
+                            '</code></dt><dd>' +
                             renderComment(signature, 'card');
                     return sigResult;
                 })
-                    .join('</dd><dt>') + '</dd>';
+                    .join('</dd><dt><cade>') + '</dd>';
         }
         else if (x.kind === 1024) {
             r += '<strong>' + x.name + '</strong>';
@@ -960,7 +960,7 @@ function renderClassCard(node) {
                 punct(': ') +
                     render(x.type) +
                     renderPermalinkAnchor(permalink) +
-                    '</dt><dd>' +
+                    '</code></dt><dd>' +
                     renderComment(x, 'card');
         }
         else {
@@ -1016,7 +1016,7 @@ function renderCommandCard(node) {
         result += '\n<dl>\n';
         if (params.length > 0) {
             result +=
-                '\n<dt>\n' +
+                '\n<dt><code>\n' +
                     params
                         .map((param) => {
                         let r = '<strong><var>' + param.name + '</var></strong>';
@@ -1024,17 +1024,17 @@ function renderCommandCard(node) {
                         if (typeDef) {
                             r += punct(': ') + typeDef;
                         }
-                        r += '\n</dt><dd>\n';
+                        r += '\n</code></dt><dd>\n';
                         r += renderComment(param, 'card');
                         return r;
                     })
-                        .join('\n</dd><dt>\n');
+                        .join('\n</dd><dt><code>\n');
             result += '\n</dd>\n';
         }
         if (signature.type && hasTag(node, 'returns')) {
-            result += '\n<dt>\n';
+            result += '\n<dt><code>\n';
             result += '<strong>→ </strong>' + render(signature.type);
-            result += '\n</dt><dd>\n';
+            result += '\n</code></dt><dd>\n';
             if (hasTag(node, 'returns')) {
                 result += renderNotices(node, getTag(node, 'returns'));
             }
@@ -1083,11 +1083,9 @@ function renderTypeAliasCard(node) {
     let result = renderCardHeader(node);
     const typeDef = render(node, 'block');
     if (typeDef) {
-        result += '<div>';
-        result += '<code>';
+        result += '\n<div>\n';
         result += typeDef;
-        result += '</code>';
-        result += '</div>';
+        result += '\n</div>\n';
         result += '\n\n';
     }
     result += renderCardFooter(node);
@@ -1097,18 +1095,18 @@ function renderGroup(node, group) {
     const topics = getCategories(node, group.kind);
     if (topics.length === 0)
         return '';
-    let result = '<section>';
+    let header = '';
     if (group.title !== 'Constructors' &&
         group.title !== 'Accessors' &&
         group.title !== 'Namespaces') {
         if ((group.kind === 1024 || group.kind === 2048) &&
             hasTag(node, 'command')) {
-            result += renderIndex(node, '', topics);
+            header += renderIndex(node, '', topics);
         }
         else if (!((group.kind & (1 | 2 | 4 | 128 | 256)) !== 0) &&
             group.children <= 1) {
             const displayTitle = { 'Type aliases': 'Types' }[group.title] || group.title;
-            result += renderIndex(node, displayTitle, topics);
+            header += renderIndex(node, displayTitle, topics);
         }
     }
     const body = topics
@@ -1118,13 +1116,13 @@ function renderGroup(node, group) {
             r += '<h3 class="category-title">';
             r += topic.title + '</h3>\n';
         }
-        r += topic.children.map((x) => render(x, 'section')).join('\n');
+        r += topic.children.map((x) => render(x, 'section')).join('');
         return r;
     })
         .join('');
     if (!body)
         return '';
-    return result + body + '</section>';
+    return '<section>' + header + body + '</section>';
 }
 function renderGroups(node) {
     if (!node.groups)
@@ -1452,7 +1450,7 @@ function render(node, style = 'inline') {
                     result += '\n<dl>\n';
                     if (node.parameters) {
                         result +=
-                            '\n<dt>\n' +
+                            '\n<dt><code>\n' +
                                 node.parameters
                                     .map((param) => {
                                     let r = '<strong><var>' +
@@ -1462,17 +1460,17 @@ function render(node, style = 'inline') {
                                     if (typeDef) {
                                         r += punct(': ') + typeDef;
                                     }
-                                    r += '\n</dt><dd>\n';
+                                    r += '\n</code></dt><dd>\n';
                                     r += renderComment(param, style);
                                     return r;
                                 })
-                                    .join('\n</dd><dt>\n');
+                                    .join('\n</dd><dt><code>\n');
                         result += '\n</dd>\n';
                     }
                     if (node.type) {
-                        result += '\n<dt>\n';
+                        result += '\n<dt><code>\n';
                         result += '<strong>→ </strong>' + render(node.type);
-                        result += '\n</dt><dd>\n';
+                        result += '\n</code></dt><dd>\n';
                         if (node.comment && node.comment.returns) {
                             result += renderNotices(node, node.comment.returns);
                         }
@@ -1513,7 +1511,7 @@ function render(node, style = 'inline') {
                     result += '<div><dl class="inset">';
                     if (node.children) {
                         result +=
-                            '<dt>' +
+                            '<dt><code>' +
                                 node.children
                                     .map((x) => {
                                     let dt = render(x) + punct(';');
@@ -1522,16 +1520,16 @@ function render(node, style = 'inline') {
                                     }
                                     const dd = renderFlags(x) +
                                         renderComment(x, style);
-                                    return dt + '</dt><dd>' + dd;
+                                    return dt + '</code></dt><dd>' + dd;
                                 })
-                                    .join('</dd><dt>');
+                                    .join('</dd><dt><code>');
                         result += '</dd>';
                     }
                     if (node.indexSignature) {
-                        result += '<dt>';
+                        result += '<dt><code>';
                         result += node.indexSignature
                             .map((x) => render(x))
-                            .join(punct(';') + '</dt><dd>');
+                            .join(punct(';') + '</code></dt><dd>');
                         result += '</dd>';
                     }
                     result += '</dl>' + '</div>';

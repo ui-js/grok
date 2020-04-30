@@ -269,7 +269,7 @@ function renderPermalinkAnchor(permalink) {
     console.assert(!permalink.document);
     return ('<a class="permalink" href="#' +
         encodeURIComponent(permalink.anchor) +
-        '" title="Permalink"><span class="sr-only">Permalink</span>' +
+        '" title="Permalink"><span class="sr-only"> Permalink </span>' +
         '<svg><use xlink:href="#link"></use></svg>' +
         '</a>');
 }
@@ -279,7 +279,7 @@ function renderIndex(node, title, categories, options) {
     let result = '';
     if (title) {
         result += '\n\n<h3>';
-        result += '<em>' + getQualifiedName(node) + '</em>';
+        result += '<em>' + getQualifiedName(node) + ' </em>';
         result += `${title}</h3>\n`;
     }
     if (categories.length === 1 && categories[0].children.length <= 1) {
@@ -360,7 +360,7 @@ function renderFlags(node, style = 'block') {
         readonly: 'read only',
     };
     result += Object.keys(TAGS)
-        .map((x) => (hasTag(node, x) ? span(TAG_NAME[x] || x, TAGS[x]) : ''))
+        .map((x) => hasTag(node, x) ? span(TAG_NAME[x] || x, TAGS[x]) : '')
         .join('');
     return result
         ? style === 'block'
@@ -786,13 +786,13 @@ function renderMethodCard(node) {
     }
     else if (parent && parent.kind === 1) {
         shortName = `<strong>${node.name}</strong>`;
-        displayName = `<em>module ${parent.name}</em>` + shortName;
+        displayName = `<em>module ${parent.name} </em>` + shortName;
     }
     else if (parent && (parent.kind & (2 | 4 | 128 | 256)) !== 0) {
         shortName = `<strong>${node.name}</strong>`;
         if (parent.kind === 2 && /^"(.*)"$/.test(parent.name)) {
             displayName =
-                `<em>module ${trimQuotes(parent.name)}</em>` + shortName;
+                `<em>module ${trimQuotes(parent.name)} </em>` + shortName;
         }
         else {
             displayName = parent.name + '.' + shortName;
@@ -871,7 +871,7 @@ function renderClassSection(node) {
     result += '>';
     const parent = getParent(node);
     if (parent) {
-        result += '<em>' + getQualifiedName(parent) + '</em>';
+        result += '<em>' + getQualifiedName(parent) + ' </em>';
     }
     result += '<span>' + getQualifiedName(node) + '</span>';
     result += renderPermalinkAnchor(permalink);
@@ -929,7 +929,7 @@ function renderClassCard(node) {
     result += node.children
         .map((x) => {
         let permalink = makePermalink(x);
-        let r = encodeURIComponent(permalink.anchor) + '">';
+        let r = encodeURIComponent(permalink.anchor) + '"><code>';
         if (x.kind === 2048) {
             r +=
                 x.signatures
@@ -944,11 +944,11 @@ function renderClassCard(node) {
                     sigResult +=
                         renderPermalinkAnchor(permalink) +
                             render(signature) +
-                            '</dt><dd>' +
+                            '</code></dt><dd>' +
                             renderComment(signature, 'card');
                     return sigResult;
                 })
-                    .join('</dd><dt>') + '</dd>';
+                    .join('</dd><dt><cade>') + '</dd>';
         }
         else if (x.kind === 1024) {
             r += '<strong>' + x.name + '</strong>';
@@ -959,7 +959,7 @@ function renderClassCard(node) {
                 punct(': ') +
                     render(x.type) +
                     renderPermalinkAnchor(permalink) +
-                    '</dt><dd>' +
+                    '</code></dt><dd>' +
                     renderComment(x, 'card');
         }
         else {
@@ -1015,7 +1015,7 @@ function renderCommandCard(node) {
         result += '\n<dl>\n';
         if (params.length > 0) {
             result +=
-                '\n<dt>\n' +
+                '\n<dt><code>\n' +
                     params
                         .map((param) => {
                         let r = '<strong><var>' + param.name + '</var></strong>';
@@ -1023,17 +1023,17 @@ function renderCommandCard(node) {
                         if (typeDef) {
                             r += punct(': ') + typeDef;
                         }
-                        r += '\n</dt><dd>\n';
+                        r += '\n</code></dt><dd>\n';
                         r += renderComment(param, 'card');
                         return r;
                     })
-                        .join('\n</dd><dt>\n');
+                        .join('\n</dd><dt><code>\n');
             result += '\n</dd>\n';
         }
         if (signature.type && hasTag(node, 'returns')) {
-            result += '\n<dt>\n';
+            result += '\n<dt><code>\n';
             result += '<strong>→ </strong>' + render(signature.type);
-            result += '\n</dt><dd>\n';
+            result += '\n</code></dt><dd>\n';
             if (hasTag(node, 'returns')) {
                 result += renderNotices(node, getTag(node, 'returns'));
             }
@@ -1082,11 +1082,9 @@ function renderTypeAliasCard(node) {
     let result = renderCardHeader(node);
     const typeDef = render(node, 'block');
     if (typeDef) {
-        result += '<div>';
-        result += '<code>';
+        result += '\n<div>\n';
         result += typeDef;
-        result += '</code>';
-        result += '</div>';
+        result += '\n</div>\n';
         result += '\n\n';
     }
     result += renderCardFooter(node);
@@ -1096,18 +1094,18 @@ function renderGroup(node, group) {
     const topics = getCategories(node, group.kind);
     if (topics.length === 0)
         return '';
-    let result = '<section>';
+    let header = '';
     if (group.title !== 'Constructors' &&
         group.title !== 'Accessors' &&
         group.title !== 'Namespaces') {
         if ((group.kind === 1024 || group.kind === 2048) &&
             hasTag(node, 'command')) {
-            result += renderIndex(node, '', topics);
+            header += renderIndex(node, '', topics);
         }
         else if (!((group.kind & (1 | 2 | 4 | 128 | 256)) !== 0) &&
             group.children <= 1) {
             const displayTitle = { 'Type aliases': 'Types' }[group.title] || group.title;
-            result += renderIndex(node, displayTitle, topics);
+            header += renderIndex(node, displayTitle, topics);
         }
     }
     const body = topics
@@ -1117,13 +1115,13 @@ function renderGroup(node, group) {
             r += '<h3 class="category-title">';
             r += topic.title + '</h3>\n';
         }
-        r += topic.children.map((x) => render(x, 'section')).join('\n');
+        r += topic.children.map((x) => render(x, 'section')).join('');
         return r;
     })
         .join('');
     if (!body)
         return '';
-    return result + body + '</section>';
+    return '<section>' + header + body + '</section>';
 }
 function renderGroups(node) {
     if (!node.groups)
@@ -1451,7 +1449,7 @@ function render(node, style = 'inline') {
                     result += '\n<dl>\n';
                     if (node.parameters) {
                         result +=
-                            '\n<dt>\n' +
+                            '\n<dt><code>\n' +
                                 node.parameters
                                     .map((param) => {
                                     let r = '<strong><var>' +
@@ -1461,17 +1459,17 @@ function render(node, style = 'inline') {
                                     if (typeDef) {
                                         r += punct(': ') + typeDef;
                                     }
-                                    r += '\n</dt><dd>\n';
+                                    r += '\n</code></dt><dd>\n';
                                     r += renderComment(param, style);
                                     return r;
                                 })
-                                    .join('\n</dd><dt>\n');
+                                    .join('\n</dd><dt><code>\n');
                         result += '\n</dd>\n';
                     }
                     if (node.type) {
-                        result += '\n<dt>\n';
+                        result += '\n<dt><code>\n';
                         result += '<strong>→ </strong>' + render(node.type);
-                        result += '\n</dt><dd>\n';
+                        result += '\n</code></dt><dd>\n';
                         if (node.comment && node.comment.returns) {
                             result += renderNotices(node, node.comment.returns);
                         }
@@ -1512,7 +1510,7 @@ function render(node, style = 'inline') {
                     result += '<div><dl class="inset">';
                     if (node.children) {
                         result +=
-                            '<dt>' +
+                            '<dt><code>' +
                                 node.children
                                     .map((x) => {
                                     let dt = render(x) + punct(';');
@@ -1521,16 +1519,16 @@ function render(node, style = 'inline') {
                                     }
                                     const dd = renderFlags(x) +
                                         renderComment(x, style);
-                                    return dt + '</dt><dd>' + dd;
+                                    return dt + '</code></dt><dd>' + dd;
                                 })
-                                    .join('</dd><dt>');
+                                    .join('</dd><dt><code>');
                         result += '</dd>';
                     }
                     if (node.indexSignature) {
-                        result += '<dt>';
+                        result += '<dt><code>';
                         result += node.indexSignature
                             .map((x) => render(x))
-                            .join(punct(';') + '</dt><dd>');
+                            .join(punct(';') + '</code></dt><dd>');
                         result += '</dd>';
                     }
                     result += '</dl>' + '</div>';
@@ -1783,28 +1781,63 @@ function build(argv) {
         let options = {
             sdkName: 'module',
             verbose: false,
-            documentTemplate: `---
-permalink: "/docs/{{sdkName}}/"
-title: "{{packageName}}"
-read_time: false
-layout: "api-layout"
-sidebar:
-    - nav: "{{sdkName}}"
-# toc: true
----
-<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
-<defs>
-    <symbol id='link' viewBox="0 0 512 512" >
-        <path fill="currentColor" d="M326.612 185.391c59.747 59.809 58.927 155.698.36 214.59-.11.12-.24.25-.36.37l-67.2 67.2c-59.27 59.27-155.699 59.262-214.96 0-59.27-59.26-59.27-155.7 0-214.96l37.106-37.106c9.84-9.84 26.786-3.3 27.294 10.606.648 17.722 3.826 35.527 9.69 52.721 1.986 5.822.567 12.262-3.783 16.612l-13.087 13.087c-28.026 28.026-28.905 73.66-1.155 101.96 28.024 28.579 74.086 28.749 102.325.51l67.2-67.19c28.191-28.191 28.073-73.757 0-101.83-3.701-3.694-7.429-6.564-10.341-8.569a16.037 16.037 0 0 1-6.947-12.606c-.396-10.567 3.348-21.456 11.698-29.806l21.054-21.055c5.521-5.521 14.182-6.199 20.584-1.731a152.482 152.482 0 0 1 20.522 17.197zM467.547 44.449c-59.261-59.262-155.69-59.27-214.96 0l-67.2 67.2c-.12.12-.25.25-.36.37-58.566 58.892-59.387 154.781.36 214.59a152.454 152.454 0 0 0 20.521 17.196c6.402 4.468 15.064 3.789 20.584-1.731l21.054-21.055c8.35-8.35 12.094-19.239 11.698-29.806a16.037 16.037 0 0 0-6.947-12.606c-2.912-2.005-6.64-4.875-10.341-8.569-28.073-28.073-28.191-73.639 0-101.83l67.2-67.19c28.239-28.239 74.3-28.069 102.325.51 27.75 28.3 26.872 73.934-1.155 101.96l-13.087 13.087c-4.35 4.35-5.769 10.79-3.783 16.612 5.864 17.194 9.042 34.999 9.69 52.721.509 13.906 17.454 20.446 27.294 10.606l37.106-37.106c59.271-59.259 59.271-155.699.001-214.959z">
-        </path>
-    </symbol>
-    <symbol id='external-link' viewBox="0 0 512 512">
-        <path fill="currentColor" d="M432,320H400a16,16,0,0,0-16,16V448H64V128H208a16,16,0,0,0,16-16V80a16,16,0,0,0-16-16H48A48,48,0,0,0,0,112V464a48,48,0,0,0,48,48H400a48,48,0,0,0,48-48V336A16,16,0,0,0,432,320ZM474.67,0H316a28,28,0,0,0-28,28V46.71A28,28,0,0,0,316.79,73.9L384,72,135.06,319.09l-.06.06a24,24,0,0,0,0,33.94l23.94,23.85.06.06a24,24,0,0,0,33.91-.09L440,128l-1.88,67.22V196a28,28,0,0,0,28,28H484a28,28,0,0,0,28-28V37.33h0A37.33,37.33,0,0,0,474.67,0Z">
-        </path>
-    </symbol>
-</defs>
-</svg>
-{{content}}`,
+            documentTemplate: `<!doctype html>
+<html class="no-js" lang="">
+
+<head>
+    <meta charset="utf-8">
+    <title>{{sdkName}} -- {{packageName}}</title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="apple-touch-icon" href="icon.png">
+    <style>
+    .sr-only {
+        position: absolute !important;
+        clip: rect(1px, 1px, 1px, 1px);
+        height: 1px !important;
+        width: 1px !important;
+        border: 0 !important;
+        overflow: hidden; 
+    }
+        svg {
+        width: 1em;
+        height: 1em;
+    }
+    /* For the sub-heading */
+    h2 em {
+        display: block;
+        font-size: 0.7rem;
+        line-height: .8;
+        font-style: normal;
+    }
+    
+    /* For the "main" symbol in the heading */
+    h2 strong {
+        font-weight: 700;
+    }      
+    </style>
+
+</head>
+
+<body>
+    <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+    <defs>
+        <symbol id='link' viewBox="0 0 512 512" >
+            <path fill="currentColor" d="M326.612 185.391c59.747 59.809 58.927 155.698.36 214.59-.11.12-.24.25-.36.37l-67.2 67.2c-59.27 59.27-155.699 59.262-214.96 0-59.27-59.26-59.27-155.7 0-214.96l37.106-37.106c9.84-9.84 26.786-3.3 27.294 10.606.648 17.722 3.826 35.527 9.69 52.721 1.986 5.822.567 12.262-3.783 16.612l-13.087 13.087c-28.026 28.026-28.905 73.66-1.155 101.96 28.024 28.579 74.086 28.749 102.325.51l67.2-67.19c28.191-28.191 28.073-73.757 0-101.83-3.701-3.694-7.429-6.564-10.341-8.569a16.037 16.037 0 0 1-6.947-12.606c-.396-10.567 3.348-21.456 11.698-29.806l21.054-21.055c5.521-5.521 14.182-6.199 20.584-1.731a152.482 152.482 0 0 1 20.522 17.197zM467.547 44.449c-59.261-59.262-155.69-59.27-214.96 0l-67.2 67.2c-.12.12-.25.25-.36.37-58.566 58.892-59.387 154.781.36 214.59a152.454 152.454 0 0 0 20.521 17.196c6.402 4.468 15.064 3.789 20.584-1.731l21.054-21.055c8.35-8.35 12.094-19.239 11.698-29.806a16.037 16.037 0 0 0-6.947-12.606c-2.912-2.005-6.64-4.875-10.341-8.569-28.073-28.073-28.191-73.639 0-101.83l67.2-67.19c28.239-28.239 74.3-28.069 102.325.51 27.75 28.3 26.872 73.934-1.155 101.96l-13.087 13.087c-4.35 4.35-5.769 10.79-3.783 16.612 5.864 17.194 9.042 34.999 9.69 52.721.509 13.906 17.454 20.446 27.294 10.606l37.106-37.106c59.271-59.259 59.271-155.699.001-214.959z">
+            </path>
+        </symbol>
+        <symbol id='external-link' viewBox="0 0 512 512">
+            <path fill="currentColor" d="M432,320H400a16,16,0,0,0-16,16V448H64V128H208a16,16,0,0,0,16-16V80a16,16,0,0,0-16-16H48A48,48,0,0,0,0,112V464a48,48,0,0,0,48,48H400a48,48,0,0,0,48-48V336A16,16,0,0,0,432,320ZM474.67,0H316a28,28,0,0,0-28,28V46.71A28,28,0,0,0,316.79,73.9L384,72,135.06,319.09l-.06.06a24,24,0,0,0,0,33.94l23.94,23.85.06.06a24,24,0,0,0,33.91-.09L440,128l-1.88,67.22V196a28,28,0,0,0,28,28H484a28,28,0,0,0,28-28V37.33h0A37.33,37.33,0,0,0,474.67,0Z">
+            </path>
+        </symbol>
+    </defs>
+    </svg>
+    {{content}}
+</body>    
+</html>
+`,
         };
         let configResult = configParser.search();
         if (!!(configResult === null || configResult === void 0 ? void 0 : configResult.config)) {

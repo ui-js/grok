@@ -38,6 +38,25 @@ interface Options {
 
 type Reflection = { [key: string]: any };
 
+type Tag =
+    | 'alpha'
+    | 'beta'
+    | 'command'
+    | 'deprecated'
+    | 'eventproperty'
+    | 'experimental'
+    | 'hidden'
+    | 'param'
+    | 'ignore'
+    | 'internal'
+    | 'label'
+    | 'override'
+    | 'readonly'
+    | 'remarks'
+    | 'returns'
+    | 'sealed'
+    | 'virtual';
+
 function span(
     value: string,
     className:
@@ -424,7 +443,7 @@ function renderPermalinkAnchor(permalink) {
     return (
         '<a class="permalink" href="#' +
         encodeURIComponent(permalink.anchor) +
-        '" title="Permalink"><span class="sr-only">Permalink</span>' +
+        '" title="Permalink"><span class="sr-only"> Permalink </span>' +
         '<svg><use xlink:href="#link"></use></svg>' +
         '</a>'
     );
@@ -448,7 +467,7 @@ function renderIndex(node, title?, categories?, options?) {
     let result = '';
     if (title) {
         result += '\n\n<h3>';
-        result += '<em>' + getQualifiedName(node) + '</em>';
+        result += '<em>' + getQualifiedName(node) + ' </em>';
         result += `${title}</h3>\n`;
     }
 
@@ -488,13 +507,16 @@ function renderIndex(node, title?, categories?, options?) {
 
 // A flag is usually a typescript keyword modifying an entry,
 // for example 'protected' -> 'isProtected' or 'optional' -> 'isOptional'
-function hasFlag(node, flag) {
+function hasFlag(
+    node: Reflection,
+    flag: 'isProtected' | 'isOptional' | 'isStatic' | 'isAbstract' | 'isRest'
+): boolean {
     return node && node.flags && node.flags[flag];
 }
 
 // A tag is a JSDOC notation, such as '@param' or '@example'
 // See https://typedoc.org/guides/doccomments/
-function getTag(node, tag) {
+function getTag(node: Reflection, tag: Tag): string {
     if (node && node.comment && node.comment.tags) {
         let result = node.comment.tags.filter((x) => x.tag === tag);
         // It *could* happen, but we're not ready to deal with that...
@@ -510,7 +532,7 @@ function getTag(node, tag) {
  *  Return true if a tag is present (but its content could be empty)
  */
 
-function hasTag(node, tag) {
+function hasTag(node: Reflection, tag: Tag) {
     return (
         node &&
         node.comment &&
@@ -519,7 +541,7 @@ function hasTag(node, tag) {
     );
 }
 
-function renderFlags(node, style = 'block') {
+function renderFlags(node: Reflection, style = 'block') {
     if (!node) return '';
     let result = '';
     if (node.flags) {
@@ -534,7 +556,7 @@ function renderFlags(node, style = 'block') {
     }
 
     const TAGS: {
-        [modifier: string]: 'red modifier-tag' | 'orange modifier-tag' | '';
+        [tag: string]: 'red modifier-tag' | 'orange modifier-tag' | '';
     } = {
         // command: '', // @command: indicate commands dispatched with .perform()
         eventproperty: '',
@@ -556,7 +578,9 @@ function renderFlags(node, style = 'block') {
         readonly: 'read only',
     };
     result += Object.keys(TAGS)
-        .map((x) => (hasTag(node, x) ? span(TAG_NAME[x] || x, TAGS[x]) : ''))
+        .map((x) =>
+            hasTag(node, x as Tag) ? span(TAG_NAME[x] || x, TAGS[x]) : ''
+        )
         .join('');
 
     return result
@@ -570,7 +594,7 @@ function renderFlags(node, style = 'block') {
  * JSDOC tags...
  * See https://github.com/microsoft/tsdoc/blob/master/tsdoc/src/details/StandardTags.ts for the list of supported tags
  */
-function renderTag(node, tag, text) {
+function renderTag(node: Reflection, tag: string, text: string) {
     if (!tag || !text) return '';
     let result = '';
     text = trimNewline(text.trim()) || '';
@@ -663,15 +687,15 @@ function renderTag(node, tag, text) {
     return result;
 }
 
-function escapeYAMLString(str) {
+function escapeYAMLString(str: string): string {
     return str.replace(/([^\\])'/g, "$1\\'");
 }
 
-function trimQuotes(str) {
+function trimQuotes(str: string): string {
     return str.replace(/(^")|("$)/g, '');
 }
 
-function trimNewline(str) {
+function trimNewline(str: string): string {
     return str.replace(/(\n+)$/g, '');
 }
 
@@ -696,7 +720,7 @@ function trimNewline(str) {
  *
  */
 
-function getQualifiedSymbol(parent, node) {
+function getQualifiedSymbol(parent: Reflection, node: Reflection) {
     if (node.kind === 0) {
         // File-level
         return '';
@@ -846,7 +870,7 @@ function getQualifiedName(node) {
 // or "(Foo:class).(Bar.function)" or "https://host.com/path/#Foo"
 // or "@module/path/director#Foo"
 
-function resolveLink(node, link: string): string {
+function resolveLink(node: Reflection, link: string): string {
     if (/^http[s]?:\/\//.test(link)) {
         // It's a regular URL
         return link;
@@ -885,7 +909,7 @@ function resolveLink(node, link: string): string {
  *
  */
 
-function renderLinkTags(node, str) {
+function renderLinkTags(node: Reflection, str: string) {
     str = str.replace(
         /{@tutorial\s+(\S+?)[ \|]+(.+?)}/g,
         (_match, p1, p2) => `<a href="${p1}">${p2}</a>`
@@ -946,7 +970,7 @@ function renderLinkTags(node, str) {
         (_match, p1, p2) => `<a href="${resolveLink(node, p1)}">${p2}</a>`
     );
 
-    // {@inheritdoc ...}
+    // {@inheritDoc ...}
     str = str.replace(/({@(?:inheritDoc)\s+(\S+?)})/gi, (_match, p1, p2) => {
         if (!p1.startsWith('{@inheritDoc')) {
             console.warn('Check capitalization of @inheritDoc', p1);
@@ -965,7 +989,7 @@ function renderLinkTags(node, str) {
 /**
  */
 
-function renderNotices(node, str) {
+function renderNotices(node: Reflection, str: string): string {
     const lines = str.split('\n');
     const blocks = [];
     let inShortBlock = false;
@@ -1204,7 +1228,7 @@ function renderMethodCard(node) {
     } else if (parent && parent.kind === 1) {
         // Parent is a module
         shortName = `<strong>${node.name}</strong>`;
-        displayName = `<em>module ${parent.name}</em>` + shortName;
+        displayName = `<em>module ${parent.name} </em>` + shortName;
     } else if (parent && (parent.kind & (2 | 4 | 128 | 256)) !== 0) {
         // Parent is a module, namespace, enum, class or interface
         // Function or method
@@ -1214,7 +1238,7 @@ function renderMethodCard(node) {
         // exported modules are returned as 'namespace' with a stringLiteral value
         if (parent.kind === 2 && /^"(.*)"$/.test(parent.name)) {
             displayName =
-                `<em>module ${trimQuotes(parent.name)}</em>` + shortName;
+                `<em>module ${trimQuotes(parent.name)} </em>` + shortName;
         } else {
             displayName = parent.name + '.' + shortName;
         }
@@ -1330,7 +1354,7 @@ function renderClassSection(node) {
 
     const parent = getParent(node);
     if (parent) {
-        result += '<em>' + getQualifiedName(parent) + '</em>';
+        result += '<em>' + getQualifiedName(parent) + ' </em>';
     }
 
     result += '<span>' + getQualifiedName(node) + '</span>';
@@ -1405,7 +1429,7 @@ function renderClassCard(node) {
     result += node.children
         .map((x) => {
             let permalink = makePermalink(x);
-            let r = encodeURIComponent(permalink.anchor) + '">';
+            let r = encodeURIComponent(permalink.anchor) + '"><code>';
             if (x.kind === 2048) {
                 // Method
                 r +=
@@ -1422,11 +1446,11 @@ function renderClassCard(node) {
                             sigResult +=
                                 renderPermalinkAnchor(permalink) +
                                 render(signature) +
-                                '</dt><dd>' +
+                                '</code></dt><dd>' +
                                 renderComment(signature, 'card');
                             return sigResult;
                         })
-                        .join('</dd><dt>') + '</dd>';
+                        .join('</dd><dt><cade>') + '</dd>';
             } else if (x.kind === 1024) {
                 // Property
                 r += '<strong>' + x.name + '</strong>';
@@ -1437,7 +1461,7 @@ function renderClassCard(node) {
                     punct(': ') +
                     render(x.type) +
                     renderPermalinkAnchor(permalink) +
-                    '</dt><dd>' +
+                    '</code></dt><dd>' +
                     renderComment(x, 'card');
             } else {
                 // Only expected a property or a method
@@ -1511,7 +1535,7 @@ function renderCommandCard(node) {
         if (params.length > 0) {
             // Display each of the additional parameters, and their info
             result +=
-                '\n<dt>\n' +
+                '\n<dt><code>\n' +
                 params
                     .map((param) => {
                         let r =
@@ -1520,18 +1544,18 @@ function renderCommandCard(node) {
                         if (typeDef) {
                             r += punct(': ') + typeDef;
                         }
-                        r += '\n</dt><dd>\n';
+                        r += '\n</code></dt><dd>\n';
                         r += renderComment(param, 'card');
                         return r;
                     })
-                    .join('\n</dd><dt>\n');
+                    .join('\n</dd><dt><code>\n');
             result += '\n</dd>\n';
         }
         if (signature.type && hasTag(node, 'returns')) {
             // The is a return type
-            result += '\n<dt>\n';
+            result += '\n<dt><code>\n';
             result += '<strong>→ </strong>' + render(signature.type);
-            result += '\n</dt><dd>\n';
+            result += '\n</code></dt><dd>\n';
             if (hasTag(node, 'returns')) {
                 result += renderNotices(node, getTag(node, 'returns'));
             }
@@ -1598,11 +1622,9 @@ function renderTypeAliasCard(node) {
 
     const typeDef = render(node, 'block');
     if (typeDef) {
-        result += '<div>';
-        result += '<code>';
+        result += '\n<div>\n';
         result += typeDef;
-        result += '</code>';
-        result += '</div>';
+        result += '\n</div>\n';
 
         result += '\n\n';
     }
@@ -1626,7 +1648,7 @@ function renderGroup(node, group) {
     // one "Other" topic
     if (topics.length === 0) return '';
     // Render heading for group, e.g. "Types"... and index
-    let result = '<section>';
+    let header = '';
     if (
         group.title !== 'Constructors' &&
         group.title !== 'Accessors' &&
@@ -1637,7 +1659,7 @@ function renderGroup(node, group) {
             hasTag(node, 'command')
         ) {
             // It's a series of commands. Display the index, but no title
-            result += renderIndex(node, '', topics);
+            header += renderIndex(node, '', topics);
         } else if (
             !((group.kind & (1 | 2 | 4 | 128 | 256)) !== 0) &&
             group.children <= 1
@@ -1646,7 +1668,7 @@ function renderGroup(node, group) {
             // interface with a single entry
             const displayTitle =
                 { 'Type aliases': 'Types' }[group.title] || group.title;
-            result += renderIndex(node, displayTitle, topics);
+            header += renderIndex(node, displayTitle, topics);
         }
     }
     const body = topics
@@ -1656,12 +1678,12 @@ function renderGroup(node, group) {
                 r += '<h3 class="category-title">';
                 r += topic.title + '</h3>\n';
             }
-            r += topic.children.map((x) => render(x, 'section')).join('\n');
+            r += topic.children.map((x) => render(x, 'section')).join('');
             return r;
         })
         .join('');
     if (!body) return '';
-    return result + body + '</section>';
+    return '<section>' + header + body + '</section>';
 }
 
 function renderGroups(node) {
@@ -2120,7 +2142,7 @@ abstract class Animal {
                     result += '\n<dl>\n';
                     if (node.parameters) {
                         result +=
-                            '\n<dt>\n' +
+                            '\n<dt><code>\n' +
                             node.parameters
                                 .map((param) => {
                                     let r =
@@ -2131,17 +2153,17 @@ abstract class Animal {
                                     if (typeDef) {
                                         r += punct(': ') + typeDef;
                                     }
-                                    r += '\n</dt><dd>\n';
+                                    r += '\n</code></dt><dd>\n';
                                     r += renderComment(param, style);
                                     return r;
                                 })
-                                .join('\n</dd><dt>\n');
+                                .join('\n</dd><dt><code>\n');
                         result += '\n</dd>\n';
                     }
                     if (node.type) {
-                        result += '\n<dt>\n';
+                        result += '\n<dt><code>\n';
                         result += '<strong>→ </strong>' + render(node.type);
-                        result += '\n</dt><dd>\n';
+                        result += '\n</code></dt><dd>\n';
                         if (node.comment && node.comment.returns) {
                             result += renderNotices(node, node.comment.returns);
                         }
@@ -2192,7 +2214,7 @@ abstract class Animal {
                     result += '<div><dl class="inset">';
                     if (node.children) {
                         result +=
-                            '<dt>' +
+                            '<dt><code>' +
                             node.children
                                 .map((x) => {
                                     let dt = render(x) + punct(';');
@@ -2202,16 +2224,16 @@ abstract class Animal {
                                     const dd =
                                         renderFlags(x) +
                                         renderComment(x, style);
-                                    return dt + '</dt><dd>' + dd;
+                                    return dt + '</code></dt><dd>' + dd;
                                 })
-                                .join('</dd><dt>');
+                                .join('</dd><dt><code>');
                         result += '</dd>';
                     }
                     if (node.indexSignature) {
-                        result += '<dt>';
+                        result += '<dt><code>';
                         result += node.indexSignature
                             .map((x) => render(x))
-                            .join(punct(';') + '</dt><dd>');
+                            .join(punct(';') + '</code></dt><dd>');
                         result += '</dd>';
                     }
                     result += '</dl>' + '</div>';
