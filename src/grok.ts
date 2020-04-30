@@ -24,16 +24,16 @@ const markdown = new markdownIt({
 
 interface Options {
     outFile?: string;
-    verbose?: boolean;
+    // verbose?: boolean;
 
     documentTemplate?: string;
 
     /** If true, the documentation is output in separate files.
      * Otherwise, it's combined in a single file
      */
-    splitOutput?: boolean;
+    // splitOutput?: boolean;
 
-    apiName?: string;
+    sdkName?: string;
 }
 
 type Reflection = { [key: string]: any };
@@ -197,9 +197,9 @@ function getParent(node) {
 /**
  * Return all the children matching the specified list of IDs
  */
-function getChildrenByID(json, children) {
+function getChildrenByID(node, children: number[]) {
     return children.map(
-        (x) => json.children.filter((child) => child.id === x)[0]
+        (x) => node.children.filter((child) => child.id === x)[0]
     );
 }
 
@@ -259,7 +259,7 @@ function sortGroups(groups) {
  * @category tag (a tsdoc standard)
  */
 
-function getCategories(node, kind) {
+function getCategories(node, kind: number) {
     let result = [];
     let children = node.groups && node.groups.filter((x) => x.kind === kind);
     if (!children || children.length !== 1) {
@@ -313,17 +313,28 @@ function getCategories(node, kind) {
 // after a '#' and path to make it a full URL
 // - title: a string to be displayed as the name of the URL.
 
-function makePermalink(node) {
+function makePermalink(
+    node
+): {
+    anchor: string;
+    title: string;
+    document?: string;
+} {
+    // We need the actual node (not a reference)
+    // This is important for shouldIgnore(). It will return false for a reference
+    // as the tags are not accessible on a reference node
+    node = getReflectionByID(node.id);
+
     if (!node || node.kind === 0) {
         // kind = 0 -> file
-        return { anchor: '', title: '', parent: null };
+        return { anchor: '', title: '' };
     }
     const parent = getParent(node);
     if (!parent) {
         // Some nodes are not in the tree of nodes and are not reachable
         // For example temporary types that are not named, as in:
         // `a: {b:T}`: `{b:T}` is an unreachable node
-        return { anchor: node.name || '', title: node.name || '' };
+        return { anchor: '', title: node.name ?? '' };
     }
     let result;
     if (node.kind === 512) {
@@ -835,7 +846,7 @@ function getQualifiedName(node) {
 // or "(Foo:class).(Bar.function)" or "https://host.com/path/#Foo"
 // or "@module/path/director#Foo"
 
-function resolveLink(node, link) {
+function resolveLink(node, link: string): string {
     if (/^http[s]?:\/\//.test(link)) {
         // It's a regular URL
         return link;
@@ -856,33 +867,14 @@ function resolveLink(node, link) {
         // specified with @externallink foo=href ?
     }
     const linkSegments = link.split('.');
-    result +=
-        '#' +
-        encodeURIComponent(
-            linkSegments
-                .map((linkSegment) => {
-                    if (/^\(.*\)$/.test(linkSegment)) {
-                        // It's already a fully qualified symbol, just return it
-                        // '(Foo:class)'
-                        return linkSegment;
-                    }
-                    // This link segment needs to be resolved to a
-                    // more specific "(Foo:class)" if there are no ambiguity
-                    // 'Foo' -> '(Foo:class)'
-                    let candidate = getReflectionByName(linkSegment, node);
-                    if (candidate) {
-                        return getQualifiedSymbol(node, candidate);
-                    }
-                    candidate = getReflectionByName(linkSegment);
-                    if (candidate) {
-                        return getQualifiedSymbol(null, candidate);
-                    }
-                    console.warn('Unresolved symbol ', linkSegment);
-                    return linkSegment;
-                })
-                .join('.')
-        );
-    return result;
+    let root = gNodes;
+    linkSegments.forEach((linkSegment) => {
+        root = getReflectionByLink(linkSegment, root);
+    });
+
+    return root
+        ? result + '#' + encodeURIComponent(makePermalink(root).anchor)
+        : result + '#' + linkSegments.join('.');
 }
 
 /**
@@ -955,13 +947,16 @@ function renderLinkTags(node, str) {
     );
 
     // {@inheritdoc ...}
-    str = str.replace(/({@(?:inheritdoc)\s+(\S+?)})/g, (_match, p1, p2) => {
+    str = str.replace(/({@(?:inheritDoc)\s+(\S+?)})/gi, (_match, p1, p2) => {
+        if (!p1.startsWith('{@inheritDoc')) {
+            console.warn('Check capitalization of @inheritDoc', p1);
+        }
         let node = getReflectionByLink(p2);
         if (!node) {
-            console.warn('Unresolved link in @inheritdoc :', p2);
+            console.warn('Unresolved link in @inheritDoc :', p2);
             return p1;
         }
-        return renderComment(node);
+        return render(node, 'block-inherit'); // As a block, but exclude tags and @example
     });
 
     return str;
@@ -1069,10 +1064,10 @@ function renderNotices(node, str) {
         .join('\n');
 }
 
-function renderComment(node) {
+function renderComment(node: Reflection, style: string): string {
     if (!node) return '';
     if (node.signatures && !node.comment)
-        return renderComment(node.signatures[0]);
+        return renderComment(node.signatures[0], style);
     if (!node.comment) return '';
     let result = '';
     let newLine = '\n';
@@ -1087,15 +1082,16 @@ function renderComment(node) {
     if (remarks) {
         result += renderNotices(node, remarks) + newLine;
     }
-
-    if (node.comment.tags && node.comment.tags.length > 0) {
-        result +=
-            newLine +
-            node.comment.tags
-                .map((x) => renderTag(node, x.tag, x.text))
-                .filter((x) => !!x)
-                .join(newLine + newLine) +
-            newLine;
+    if (style !== 'block-inherit') {
+        if (node.comment.tags && node.comment.tags.length > 0) {
+            result +=
+                newLine +
+                node.comment.tags
+                    .map((x) => renderTag(node, x.tag, x.text))
+                    .filter((x) => !!x)
+                    .join(newLine + newLine) +
+                newLine;
+        }
     }
     return result;
 }
@@ -1109,6 +1105,13 @@ function getModuleName(node) {
 }
 
 function shouldIgnore(node) {
+    // @hidden and @ignore are synonyms. The nodes for these symbols are not
+    // even created.
+    // @internal will result in nodes being created, unless --strip-internal is
+    // true (which it isn't).
+    // @internal is in general a better tag, as it allows us to distintguish
+    // between an @internal symbols (which should not be documented) and an
+    // external symbol (which has an external link)
     return (
         hasTag(node, 'hidden') ||
         hasTag(node, 'ignore') ||
@@ -1170,7 +1173,7 @@ function renderCardHeader(node, displayName?) {
  */
 
 function renderCardFooter(node) {
-    return renderComment(node) + '\n</section>\n';
+    return renderComment(node, 'card') + '\n</section>\n';
 }
 
 /**
@@ -1407,29 +1410,35 @@ function renderClassCard(node) {
                 // Method
                 r +=
                     x.signatures
-                        .map(
-                            (signature) =>
+                        .map((signature) => {
+                            let sigResult =
                                 renderFlags(x, 'inline') +
                                 '<strong>' +
                                 x.name +
-                                '</strong>' +
-                                render(signature) +
+                                '</strong>';
+                            if (hasFlag(x, 'isOptional')) {
+                                sigResult += span('?', 'modifier');
+                            }
+                            sigResult +=
                                 renderPermalinkAnchor(permalink) +
+                                render(signature) +
                                 '</dt><dd>' +
-                                renderComment(signature)
-                        )
+                                renderComment(signature, 'card');
+                            return sigResult;
+                        })
                         .join('</dd><dt>') + '</dd>';
             } else if (x.kind === 1024) {
                 // Property
+                r += '<strong>' + x.name + '</strong>';
+                if (hasFlag(x, 'isOptional')) {
+                    r += span('?', 'modifier');
+                }
                 r +=
-                    '<strong>' +
-                    x.name +
-                    '</strong>' +
                     punct(': ') +
                     render(x.type) +
                     renderPermalinkAnchor(permalink) +
                     '</dt><dd>' +
-                    renderComment(x);
+                    renderComment(x, 'card');
             } else {
                 // Only expected a property or a method
                 // in a "short" class/interface
@@ -1512,7 +1521,7 @@ function renderCommandCard(node) {
                             r += punct(': ') + typeDef;
                         }
                         r += '\n</dt><dd>\n';
-                        r += renderComment(param);
+                        r += renderComment(param, 'card');
                         return r;
                     })
                     .join('\n</dd><dt>\n');
@@ -1659,7 +1668,7 @@ function renderGroups(node) {
     if (!node.groups) return '';
     let groups = sortGroups(node.groups);
     return (
-        renderComment(node) +
+        renderComment(node, 'section') +
         groups
             .map((x) => renderGroup(node, x))
             .filter((x) => !!x)
@@ -1786,11 +1795,12 @@ abstract class Animal {
         // E.g. the name of another type
         // For example, T in 'f(a:T)'
 
-        let name = node.name;
+        let typeArguments = '';
         if (node.typeArguments) {
-            name += punct('<');
-            name += node.typeArguments.map((x) => render(x)).join(punct(', '));
-            name += punct('>');
+            typeArguments =
+                punct('&lt;') +
+                node.typeArguments.map((x) => render(x)).join(punct(', ')) +
+                punct('&gt;');
         }
 
         // Enum, Class, Interface, TypeAlias
@@ -1802,7 +1812,7 @@ abstract class Animal {
         if (!candidate) {
             // Find by name in the parent space
             candidate = getReflectionByName(
-                name,
+                node.name,
                 parent,
                 4 | 128 | 256 | 4194304
             );
@@ -1811,24 +1821,27 @@ abstract class Animal {
             const permalink = makePermalink(candidate);
             if (candidate.kind === 16) {
                 // For enum members, include the parent (the Enum) name
-                permalink.title = permalink.parent.name + '.' + node.name;
+                permalink.title = parent.name + '.' + node.name;
             } else {
-                permalink.title = name; // Don't render(), it's a reference, we just need its name
+                permalink.title = node.name; // Don't render(), it's a reference, we just need its name
             }
-            return renderPermalink(permalink);
+            return renderPermalink(permalink) + typeArguments;
         }
 
         // Find by name in the global space
         candidate = getReflectionByName(
-            name,
+            node.name,
             undefined,
             4 | 128 | 256 | 4194304
         );
         if (candidate) {
-            return renderPermalink(makePermalink(candidate), name);
+            return (
+                renderPermalink(makePermalink(candidate), node.name) +
+                typeArguments
+            );
         }
         if (candidate) {
-            return name; // Don't render, it's a reference, we just need its name
+            return node.name + typeArguments; // Don't render, it's a reference, we just need its name
         }
 
         if (
@@ -1893,9 +1906,10 @@ abstract class Animal {
                 '<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/' +
                 node.name +
                 '" class="externallink">' +
-                name +
+                node.name +
                 '<svg><use xlink:href="#external-link"></use></svg>' +
-                '</a>'
+                '</a>' +
+                typeArguments
             );
         }
 
@@ -1907,9 +1921,10 @@ abstract class Animal {
             '<a href="https://developer.mozilla.org/Web/API/' +
             node.name +
             '" class="externallink">' +
-            name +
+            node.name +
             '<svg><use xlink:href="#external-link"></use></svg>' +
-            '</a>'
+            '</a>' +
+            typeArguments
         );
     }
 
@@ -1996,7 +2011,7 @@ abstract class Animal {
             }
             result += '</dt><dd>';
             result += renderFlags(node);
-            result += renderComment(node);
+            result += renderComment(node, style);
             result += '</dd>';
             break;
 
@@ -2117,7 +2132,7 @@ abstract class Animal {
                                         r += punct(': ') + typeDef;
                                     }
                                     r += '\n</dt><dd>\n';
-                                    r += renderComment(param);
+                                    r += renderComment(param, style);
                                     return r;
                                 })
                                 .join('\n</dd><dt>\n');
@@ -2173,8 +2188,8 @@ abstract class Animal {
                     .join(punct('; '));
             } else if (node.children || node.indexSignature) {
                 // E.g. `{ p: T; q: U }`
-                if (style === 'block') {
-                    result += punct('{') + '<div><dl class="inset">';
+                if (style === 'block' || style === 'block-inherit') {
+                    result += '<div><dl class="inset">';
                     if (node.children) {
                         result +=
                             '<dt>' +
@@ -2185,7 +2200,8 @@ abstract class Animal {
                                         dt = span(dt, 'deprecated');
                                     }
                                     const dd =
-                                        renderFlags(x) + renderComment(x);
+                                        renderFlags(x) +
+                                        renderComment(x, style);
                                     return dt + '</dt><dd>' + dd;
                                 })
                                 .join('</dd><dt>');
@@ -2198,7 +2214,7 @@ abstract class Animal {
                             .join(punct(';') + '</dt><dd>');
                         result += '</dd>';
                     }
-                    result += '</dl>' + punct('}') + '</div>';
+                    result += '</dl>' + '</div>';
                 } else if (style === 'inline') {
                     result += punct('{');
                     if (node.children) {
@@ -2248,18 +2264,21 @@ abstract class Animal {
                 result = renderTypeAliasCard(node);
             } else {
                 let def = render(node.type, style);
-                result = node.name;
+                result = '';
                 if (node.typeParameter) {
-                    result += punct('<');
+                    result += punct('&lt;');
                     result += node.typeParameter
                         .map((typeParam) => render(typeParam))
                         .join(punct(', '));
-                    result += punct('>');
+                    result += punct('&gt;');
+                    if (def) {
+                        result += punct(' = ');
+                    }
                 }
-                if (def) {
-                    result +=
-                        punct(' = ') +
-                        renderPermalink(makePermalink(node.type), def);
+                if (def && node.type === 'reference') {
+                    result += renderPermalink(makePermalink(node.type)) + def;
+                } else if (def) {
+                    result += def;
                 }
             }
             break;
@@ -2283,7 +2302,7 @@ function getReflectionsFromFile(src: string[]): Reflection {
     const app = new TypeDoc.Application();
 
     // If you want TypeDoc to load tsconfig.json / typedoc.json files
-    app.options.addReader(new TypeDoc.TSConfigReader());
+    // app.options.addReader(new TypeDoc.TSConfigReader());
     app.options.addReader(new TypeDoc.TypeDocReader());
 
     app.bootstrap({
@@ -2294,6 +2313,8 @@ function getReflectionsFromFile(src: string[]): Reflection {
         module: 'ESNext',
         experimentalDecorators: true,
         moduleResolution: 'node', // To properly resolve 'import' statements
+
+        stripInternal: false, // We want to manually hide the internal, but preserve them in the AST
 
         includeDeclarations: true, // To process .d.ts files
         excludeExternals: true, // To exclude references from external files
@@ -2344,7 +2365,7 @@ export function grok(
     try {
         gNodes = getReflectionsFromFile(src);
 
-        let apiName = options.apiName;
+        let sdkName = options.sdkName;
 
         const packages = gNodes.groups?.filter((x) => (x.kind & 3) !== 0);
         // packages = modules or namespaces
@@ -2353,19 +2374,19 @@ export function grok(
             packages[0] &&
             packages[0].children[0] &&
             getReflectionByID(packages[0].children[0]);
-        if (!apiName && mainPackage) apiName = mainPackage.name;
-        if (apiName) {
-            if (apiName.startsWith('"') && apiName.endsWith('"'))
-                apiName = apiName.substring(1, apiName.length - 2);
-            if (apiName.endsWith('.d')) apiName = apiName.substring(2);
+        if (!sdkName && mainPackage) sdkName = mainPackage.name;
+        if (sdkName) {
+            if (sdkName.startsWith('"') && sdkName.endsWith('"'))
+                sdkName = sdkName.substring(1, sdkName.length - 2);
+            if (sdkName.endsWith('.d')) sdkName = sdkName.substring(2);
         }
-        const packageName = apiName || gNodes.name || '';
+        const packageName = sdkName || gNodes.name || '';
 
         const content = render(gNodes, 'section');
         if (content) {
             const document = applyTemplate(options.documentTemplate, {
                 packageName: escapeYAMLString(packageName),
-                apiName: escapeYAMLString(trimNewline(apiName || '')),
+                sdkName: escapeYAMLString(trimNewline(sdkName || '')),
                 content,
             });
             return { [options?.outFile ?? 'index.html']: document };

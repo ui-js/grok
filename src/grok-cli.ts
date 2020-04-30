@@ -50,15 +50,15 @@ function outputResult(
 function build(argv): void {
     try {
         let options = {
-            apiName: 'module',
+            sdkName: 'module',
             verbose: false,
             documentTemplate: `---
-permalink: "/docs/{{apiName}}/"
+permalink: "/docs/{{sdkName}}/"
 title: "{{packageName}}"
 read_time: false
 layout: "api-layout"
 sidebar:
-    - nav: "{{apiName}}"
+    - nav: "{{sdkName}}"
 # toc: true
 ---
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
@@ -127,6 +127,10 @@ function buildOptions(yargs): void {
             type: 'path',
         })
         .normalize('path')
+        .option('sdkName', {
+            describe: 'Name of the API/Library/Module being documented',
+            type: 'string',
+        })
         .option('outFile', {
             describe: 'Save output to file (in outDir)',
             type: 'path',
