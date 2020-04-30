@@ -128,8 +128,8 @@ function getParent(node) {
         return ancestors[1];
     return null;
 }
-function getChildrenByID(json, children) {
-    return children.map((x) => json.children.filter((child) => child.id === x)[0]);
+function getChildrenByID(node, children) {
+    return children.map((x) => node.children.filter((child) => child.id === x)[0]);
 }
 function getName(node) {
     if (node.kind === 1) {
@@ -202,12 +202,14 @@ function getCategories(node, kind) {
     return result;
 }
 function makePermalink(node) {
+    var _a;
+    node = getReflectionByID(node.id);
     if (!node || node.kind === 0) {
-        return { anchor: '', title: '', parent: null };
+        return { anchor: '', title: '' };
     }
     const parent = getParent(node);
     if (!parent) {
-        return { anchor: node.name || '', title: node.name || '' };
+        return { anchor: '', title: (_a = node.name) !== null && _a !== void 0 ? _a : '' };
     }
     let result;
     if (node.kind === 512) {
@@ -564,26 +566,13 @@ function resolveLink(node, link) {
         link = imports.slice(1).join('');
     }
     const linkSegments = link.split('.');
-    result +=
-        '#' +
-            encodeURIComponent(linkSegments
-                .map((linkSegment) => {
-                if (/^\(.*\)$/.test(linkSegment)) {
-                    return linkSegment;
-                }
-                let candidate = getReflectionByName(linkSegment, node);
-                if (candidate) {
-                    return getQualifiedSymbol(node, candidate);
-                }
-                candidate = getReflectionByName(linkSegment);
-                if (candidate) {
-                    return getQualifiedSymbol(null, candidate);
-                }
-                console.warn('Unresolved symbol ', linkSegment);
-                return linkSegment;
-            })
-                .join('.'));
-    return result;
+    let root = gNodes;
+    linkSegments.forEach((linkSegment) => {
+        root = getReflectionByLink(linkSegment, root);
+    });
+    return root
+        ? result + '#' + encodeURIComponent(makePermalink(root).anchor)
+        : result + '#' + linkSegments.join('.');
 }
 function renderLinkTags(node, str) {
     str = str.replace(/{@tutorial\s+(\S+?)[ \|]+(.+?)}/g, (_match, p1, p2) => `<a href="${p1}">${p2}</a>`);
@@ -596,13 +585,16 @@ function renderLinkTags(node, str) {
     str = str.replace(/{@(?:link|linkplain)\s+(\S+?)\s*\|\s*(.+?)}/g, (_match, p1, p2) => `<a href="${resolveLink(node, p1)}">${p2}</a>`);
     str = str.replace(/\[\[(\S+?)\]\]/g, (_match, p1) => `<a href="${resolveLink(node, p1)}">${p1}</a>`);
     str = str.replace(/\[\[(\S+?)\s*\|\s*(.+?)\]\]/g, (_match, p1, p2) => `<a href="${resolveLink(node, p1)}">${p2}</a>`);
-    str = str.replace(/({@(?:inheritdoc)\s+(\S+?)})/g, (_match, p1, p2) => {
+    str = str.replace(/({@(?:inheritDoc)\s+(\S+?)})/gi, (_match, p1, p2) => {
+        if (!p1.startsWith('{@inheritDoc')) {
+            console.warn('Check capitalization of @inheritDoc', p1);
+        }
         let node = getReflectionByLink(p2);
         if (!node) {
-            console.warn('Unresolved link in @inheritdoc :', p2);
+            console.warn('Unresolved link in @inheritDoc :', p2);
             return p1;
         }
-        return renderComment(node);
+        return render(node, 'block-inherit');
     });
     return str;
 }
@@ -700,11 +692,11 @@ function renderNotices(node, str) {
     })
         .join('\n');
 }
-function renderComment(node) {
+function renderComment(node, style) {
     if (!node)
         return '';
     if (node.signatures && !node.comment)
-        return renderComment(node.signatures[0]);
+        return renderComment(node.signatures[0], style);
     if (!node.comment)
         return '';
     let result = '';
@@ -719,14 +711,16 @@ function renderComment(node) {
     if (remarks) {
         result += renderNotices(node, remarks) + newLine;
     }
-    if (node.comment.tags && node.comment.tags.length > 0) {
-        result +=
-            newLine +
-                node.comment.tags
-                    .map((x) => renderTag(node, x.tag, x.text))
-                    .filter((x) => !!x)
-                    .join(newLine + newLine) +
-                newLine;
+    if (style !== 'block-inherit') {
+        if (node.comment.tags && node.comment.tags.length > 0) {
+            result +=
+                newLine +
+                    node.comment.tags
+                        .map((x) => renderTag(node, x.tag, x.text))
+                        .filter((x) => !!x)
+                        .join(newLine + newLine) +
+                    newLine;
+        }
     }
     return result;
 }
@@ -774,7 +768,7 @@ function renderCardHeader(node, displayName) {
     return result;
 }
 function renderCardFooter(node) {
-    return renderComment(node) + '\n</section>\n';
+    return renderComment(node, 'card') + '\n</section>\n';
 }
 function renderMethodCard(node) {
     if (shouldIgnore(node))
@@ -939,26 +933,34 @@ function renderClassCard(node) {
         if (x.kind === 2048) {
             r +=
                 x.signatures
-                    .map((signature) => renderFlags(x, 'inline') +
-                    '<strong>' +
-                    x.name +
-                    '</strong>' +
-                    render(signature) +
-                    renderPermalinkAnchor(permalink) +
-                    '</dt><dd>' +
-                    renderComment(signature))
+                    .map((signature) => {
+                    let sigResult = renderFlags(x, 'inline') +
+                        '<strong>' +
+                        x.name +
+                        '</strong>';
+                    if (hasFlag(x, 'isOptional')) {
+                        sigResult += span('?', 'modifier');
+                    }
+                    sigResult +=
+                        renderPermalinkAnchor(permalink) +
+                            render(signature) +
+                            '</dt><dd>' +
+                            renderComment(signature, 'card');
+                    return sigResult;
+                })
                     .join('</dd><dt>') + '</dd>';
         }
         else if (x.kind === 1024) {
+            r += '<strong>' + x.name + '</strong>';
+            if (hasFlag(x, 'isOptional')) {
+                r += span('?', 'modifier');
+            }
             r +=
-                '<strong>' +
-                    x.name +
-                    '</strong>' +
-                    punct(': ') +
+                punct(': ') +
                     render(x.type) +
                     renderPermalinkAnchor(permalink) +
                     '</dt><dd>' +
-                    renderComment(x);
+                    renderComment(x, 'card');
         }
         else {
             console.error('Unexpected item in a "short" class/interface');
@@ -1022,7 +1024,7 @@ function renderCommandCard(node) {
                             r += punct(': ') + typeDef;
                         }
                         r += '\n</dt><dd>\n';
-                        r += renderComment(param);
+                        r += renderComment(param, 'card');
                         return r;
                     })
                         .join('\n</dd><dt>\n');
@@ -1127,7 +1129,7 @@ function renderGroups(node) {
     if (!node.groups)
         return '';
     let groups = sortGroups(node.groups);
-    return (renderComment(node) +
+    return (renderComment(node, 'section') +
         groups
             .map((x) => renderGroup(node, x))
             .filter((x) => !!x)
@@ -1192,35 +1194,37 @@ function render(node, style = 'inline') {
         console.error('Unexpected node type ', node.type);
     }
     if (node.type === 'reference') {
-        let name = node.name;
+        let typeArguments = '';
         if (node.typeArguments) {
-            name += punct('<');
-            name += node.typeArguments.map((x) => render(x)).join(punct(', '));
-            name += punct('>');
+            typeArguments =
+                punct('&lt;') +
+                    node.typeArguments.map((x) => render(x)).join(punct(', ')) +
+                    punct('&gt;');
         }
         let candidate;
         if (typeof node.id !== 'undefined') {
             candidate = getReflectionByID(node.id);
         }
         if (!candidate) {
-            candidate = getReflectionByName(name, parent, 4 | 128 | 256 | 4194304);
+            candidate = getReflectionByName(node.name, parent, 4 | 128 | 256 | 4194304);
         }
         if (candidate) {
             const permalink = makePermalink(candidate);
             if (candidate.kind === 16) {
-                permalink.title = permalink.parent.name + '.' + node.name;
+                permalink.title = parent.name + '.' + node.name;
             }
             else {
-                permalink.title = name;
+                permalink.title = node.name;
             }
-            return renderPermalink(permalink);
+            return renderPermalink(permalink) + typeArguments;
         }
-        candidate = getReflectionByName(name, undefined, 4 | 128 | 256 | 4194304);
+        candidate = getReflectionByName(node.name, undefined, 4 | 128 | 256 | 4194304);
         if (candidate) {
-            return renderPermalink(makePermalink(candidate), name);
+            return (renderPermalink(makePermalink(candidate), node.name) +
+                typeArguments);
         }
         if (candidate) {
-            return name;
+            return node.name + typeArguments;
         }
         if ([
             'Object',
@@ -1281,16 +1285,18 @@ function render(node, style = 'inline') {
             return ('<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/' +
                 node.name +
                 '" class="externallink">' +
-                name +
+                node.name +
                 '<svg><use xlink:href="#external-link"></use></svg>' +
-                '</a>');
+                '</a>' +
+                typeArguments);
         }
         return ('<a href="https://developer.mozilla.org/Web/API/' +
             node.name +
             '" class="externallink">' +
-            name +
+            node.name +
             '<svg><use xlink:href="#external-link"></use></svg>' +
-            '</a>');
+            '</a>' +
+            typeArguments);
     }
     if (node.type === 'reflection') {
         return render(node.declaration, style);
@@ -1352,7 +1358,7 @@ function render(node, style = 'inline') {
             }
             result += '</dt><dd>';
             result += renderFlags(node);
-            result += renderComment(node);
+            result += renderComment(node, style);
             result += '</dd>';
             break;
         case 32:
@@ -1456,7 +1462,7 @@ function render(node, style = 'inline') {
                                         r += punct(': ') + typeDef;
                                     }
                                     r += '\n</dt><dd>\n';
-                                    r += renderComment(param);
+                                    r += renderComment(param, style);
                                     return r;
                                 })
                                     .join('\n</dd><dt>\n');
@@ -1502,8 +1508,8 @@ function render(node, style = 'inline') {
                     .join(punct('; '));
             }
             else if (node.children || node.indexSignature) {
-                if (style === 'block') {
-                    result += punct('{') + '<div><dl class="inset">';
+                if (style === 'block' || style === 'block-inherit') {
+                    result += '<div><dl class="inset">';
                     if (node.children) {
                         result +=
                             '<dt>' +
@@ -1513,7 +1519,8 @@ function render(node, style = 'inline') {
                                     if (hasTag(x, 'deprecated')) {
                                         dt = span(dt, 'deprecated');
                                     }
-                                    const dd = renderFlags(x) + renderComment(x);
+                                    const dd = renderFlags(x) +
+                                        renderComment(x, style);
                                     return dt + '</dt><dd>' + dd;
                                 })
                                     .join('</dd><dt>');
@@ -1526,7 +1533,7 @@ function render(node, style = 'inline') {
                             .join(punct(';') + '</dt><dd>');
                         result += '</dd>';
                     }
-                    result += '</dl>' + punct('}') + '</div>';
+                    result += '</dl>' + '</div>';
                 }
                 else if (style === 'inline') {
                     result += punct('{');
@@ -1575,18 +1582,22 @@ function render(node, style = 'inline') {
             }
             else {
                 let def = render(node.type, style);
-                result = node.name;
+                result = '';
                 if (node.typeParameter) {
-                    result += punct('<');
+                    result += punct('&lt;');
                     result += node.typeParameter
                         .map((typeParam) => render(typeParam))
                         .join(punct(', '));
-                    result += punct('>');
+                    result += punct('&gt;');
+                    if (def) {
+                        result += punct(' = ');
+                    }
                 }
-                if (def) {
-                    result +=
-                        punct(' = ') +
-                            renderPermalink(makePermalink(node.type), def);
+                if (def && node.type === 'reference') {
+                    result += renderPermalink(makePermalink(node.type)) + def;
+                }
+                else if (def) {
+                    result += def;
                 }
             }
             break;
@@ -1603,7 +1614,6 @@ function getReflectionsFromFile(src) {
     src = src.map((x) => path.resolve(path.normalize(x)));
     let result = {};
     const app = new TypeDoc.Application();
-    app.options.addReader(new TypeDoc.TSConfigReader());
     app.options.addReader(new TypeDoc.TypeDocReader());
     app.bootstrap({
         logger: (message, _level, _newline) => console.log(message),
@@ -1612,6 +1622,7 @@ function getReflectionsFromFile(src) {
         module: 'ESNext',
         experimentalDecorators: true,
         moduleResolution: 'node',
+        stripInternal: false,
         includeDeclarations: true,
         excludeExternals: true,
     });
@@ -1635,26 +1646,26 @@ function grok(src, options) {
     var _a, _b;
     try {
         gNodes = getReflectionsFromFile(src);
-        let apiName = options.apiName;
+        let sdkName = options.sdkName;
         const packages = (_a = gNodes.groups) === null || _a === void 0 ? void 0 : _a.filter((x) => (x.kind & 3) !== 0);
         const mainPackage = packages &&
             packages[0] &&
             packages[0].children[0] &&
             getReflectionByID(packages[0].children[0]);
-        if (!apiName && mainPackage)
-            apiName = mainPackage.name;
-        if (apiName) {
-            if (apiName.startsWith('"') && apiName.endsWith('"'))
-                apiName = apiName.substring(1, apiName.length - 2);
-            if (apiName.endsWith('.d'))
-                apiName = apiName.substring(2);
+        if (!sdkName && mainPackage)
+            sdkName = mainPackage.name;
+        if (sdkName) {
+            if (sdkName.startsWith('"') && sdkName.endsWith('"'))
+                sdkName = sdkName.substring(1, sdkName.length - 2);
+            if (sdkName.endsWith('.d'))
+                sdkName = sdkName.substring(2);
         }
-        const packageName = apiName || gNodes.name || '';
+        const packageName = sdkName || gNodes.name || '';
         const content = render(gNodes, 'section');
         if (content) {
             const document = applyTemplate(options.documentTemplate, {
                 packageName: escapeYAMLString(packageName),
-                apiName: escapeYAMLString(trimNewline(apiName || '')),
+                sdkName: escapeYAMLString(trimNewline(sdkName || '')),
                 content,
             });
             return { [(_b = options === null || options === void 0 ? void 0 : options.outFile) !== null && _b !== void 0 ? _b : 'index.html']: document };
@@ -1770,15 +1781,15 @@ function outputResult(outDir, result) {
 function build(argv) {
     try {
         let options = {
-            apiName: 'module',
+            sdkName: 'module',
             verbose: false,
             documentTemplate: `---
-permalink: "/docs/{{apiName}}/"
+permalink: "/docs/{{sdkName}}/"
 title: "{{packageName}}"
 read_time: false
 layout: "api-layout"
 sidebar:
-    - nav: "{{apiName}}"
+    - nav: "{{sdkName}}"
 # toc: true
 ---
 <svg xmlns="http://www.w3.org/2000/svg" style="display:none">
@@ -1825,7 +1836,7 @@ function buildOptions(yargs) {
         type: 'path',
     })
         .normalize('path')
-        .option('apiName', {
+        .option('sdkName', {
         describe: 'Name of the API/Library/Module being documented',
         type: 'string',
     })
