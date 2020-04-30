@@ -31,8 +31,8 @@ Configuration can be specified:
 
 The configuration can include the following keys:
 
--   `apiName` the name of the API/Library/Module being documented
+-   `sdkName` the name of the SDK being documented
 -   `documentTemplate` a string which will be used to build the output file, with the following substrings substituted:
     -   `{{content}}` HTML markup of the documentation (suitable for as the content of a `<body>` tag)
-    -   `{{apiName}}` the name of the API, as indicated above
+    -   `{{sdkName}}` the name of the SDK, as indicated above
     -   `{{packageName}}`
