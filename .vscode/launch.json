@@ -14,6 +14,7 @@
             "preLaunchTask": "npm: build",
             "args": [
                 "../mathlive/mathlive/dist/mathlive.d.ts",
+                // "test/function-test.d.ts",
                 "--outDir",
                 "build",
                 "--verbose",

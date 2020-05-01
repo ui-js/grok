@@ -72,10 +72,17 @@ function build(argv): void {
         border: 0 !important;
         overflow: hidden; 
     }
-        svg {
+    svg {
         width: 1em;
         height: 1em;
     }
+
+    .stack {
+        display: flex;
+        flex-flow: column;
+
+    }
+
     /* For the sub-heading */
     h2 em {
         display: block;
@@ -87,7 +94,128 @@ function build(argv): void {
     /* For the "main" symbol in the heading */
     h2 strong {
         font-weight: 700;
-    }      
+    }
+
+    h2 span.subhead, h3 span.subhead {
+        display: block;
+        font-size: .8rem;
+        line-height: .8;
+        font-weight: 400;
+        font-style: normal;
+    }
+    
+    code, .code {
+        font-family: monospace;
+        display: inline;
+        overflow-wrap: break-word;
+    }
+
+    .card {
+        display: block;
+    
+        margin-top: 30px;
+        margin-bottom: 40px;
+        overflow: hidden;
+        padding: 20px 17px;
+        border-radius: 4px;
+        border: 1px solid #fafafa;
+        background-color: #fefefe;
+        color: #000;
+        max-width: 820px;
+        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
+    }
+
+    .card h3 {
+        display: flex;
+        justify-content: space-between;
+        width: calc(100% + 40px);
+        margin-top: -25px;
+        margin-bottom: 10px;
+        margin-left: -10px;
+        margin-right: -20px;
+        padding: 20px;
+        padding-bottom: 10px;
+    
+        font-family: monospace;
+        font-size: 1.2rem;
+        line-height: 1.5;
+        font-weight: 400;
+    
+        white-space: nowrap;
+    
+        border: none;
+        border-bottom: 1px solid #e7e7e7;
+        box-sizing: border-box;
+    }
+
+    /* Anchor icon */
+    .permalink { 
+        float: right;
+    }
+        
+    /* The name of a referenced type, e.g. */
+    /* Bar in type Foo = Bar */
+    .reference, .typeParameter {
+        font-weight: 700;
+    }
+    
+    /* For a string, in quotes */
+    .string-literal {
+        color: #666;
+    }
+    
+    /* Punctuation signs, "=", "|", ":".  */
+    /* For example "type foo = number" */
+    .punctuation {
+        color: rgb(103, 103, 236); /* indigo-400 */
+        font-weight: 700;
+    }
+    
+    /* For "string", "number", "void", "typeof", etc... */
+    .keyword {
+        color: rgb(146, 86, 217); /* purple-400 */
+    }
+    
+    /* The "?" symbol to indicate optional arguments */
+    /* The '...' string to indicate 'rest' arguments */
+    .modifier {
+        color: rgb(216, 55, 144); /* $magenta-400; */
+        font-weight: 700;
+    }
+
+    .modifier-tag, .tag-name {
+        display: inline-block;
+        white-space: nowrap;
+        font-size: 13px;
+        line-height: 18px;
+        font-weight: 400;
+        font-variant: normal;
+        font-style: normal;
+        color: #0066ce;
+    
+        height: 22px;
+    
+        margin-left: 0;
+        margin-right: 16px;
+    
+        padding-left: 10px;
+        padding-right: 10px;
+        padding-top: 1px;
+        padding-bottom: 1px;
+    
+        box-sizing: border-box;
+        -webkit-font-smoothing: antialiased;
+    
+        border: 1px solid #0066ce;
+        border-radius: 3px;
+    
+        background: transparent;
+    
+        min-width: 90px;
+        text-align: center;
+    
+        vertical-align: middle;
+    }
     </style>
 
 </head>
