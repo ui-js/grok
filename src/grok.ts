@@ -178,6 +178,7 @@ function span(
         | 'tag-name'
         | 'string-literal'
         | 'deprecated'
+        | 'highlighting-mark-container'
         | ''
 ) {
     if (!className) return '<span>' + value + '</span>';
@@ -243,6 +244,49 @@ function list(
         result += '\n</ul>\n';
     }
     return result;
+}
+
+function highlightingMark(content: string): string {
+    return span(
+        content +
+            '<svg class="highlighting-mark"><use xlink:href="#highlighting-mark-' +
+            (Math.floor(3 * Math.random()) + 1) +
+            '"></use></svg>',
+        'highlighting-mark-container'
+    );
+}
+
+function heading(
+    level: number,
+    subhead: string,
+    head: string,
+    permalink?: Permalink,
+    options?: { deprecated?: boolean; className?: string }
+) {
+    const tag = 'h' + Number(level).toString();
+
+    let body = subhead ? span(subhead, 'subhead') : '';
+
+    if (permalink?.anchor) {
+        body += highlightingMark(
+            span(head, options?.deprecated ? 'head deprecated' : 'head')
+        );
+        body = span(body, 'stack');
+        body += renderPermalinkAnchor(permalink);
+    } else {
+        body += span(head, options?.deprecated ? 'head deprecated' : 'head');
+        body = span(body, 'stack');
+    }
+    return (
+        '<' +
+        tag +
+        (options?.className ? ' class="' + options.className + '"' : '') +
+        '>' +
+        body +
+        '</' +
+        tag +
+        '>'
+    );
 }
 
 // A "reflection" is some type information.
@@ -641,8 +685,7 @@ function renderIndex(
     if (!categories || categories.length === 0) return '';
     let result = '';
     if (title) {
-        result = span(getQualifiedName(node), 'subhead') + span(title, 'head');
-        result = '\n<h3>' + result + '</h3>\n';
+        result = heading(3, getQualifiedName(node), title);
     }
 
     // Don't display the index if there's only one item in it
@@ -874,6 +917,14 @@ function trimQuotes(str: string): string {
 
 function trimNewline(str: string): string {
     return str.replace(/(\n+)$/g, '');
+}
+
+function isVoid(node: Reflection): boolean {
+    // Both values can be returned. Not sure when, or if that's intentional...
+    return (
+        node.type === 'void' ||
+        (node.type === 'intrinsic' && node.name === 'void')
+    );
 }
 
 /**
@@ -1339,18 +1390,13 @@ function renderCard(
     // The permalink should refer to this document (and therefore be empty)
     console.assert(!permalink.document);
 
-    let header = `\n<h3>`;
-    header += span(
-        span(getQualifiedName(parent), 'subhead') +
-            span(
-                displayName,
-                hasTag(node, 'deprecated') ? 'head deprecated' : 'head'
-            ) +
-            renderFlags(node, 'inline'),
-        'stack'
+    const header = heading(
+        3,
+        getQualifiedName(parent),
+        displayName,
+        permalink,
+        { deprecated: hasTag(node, 'deprecated') }
     );
-    header += renderPermalinkAnchor(permalink);
-    header += '</h3>';
 
     return section(header + content, { permalink, className: 'card' });
 }
@@ -1473,21 +1519,16 @@ function renderClassSection(node: Reflection): string {
     }
 
     const permalink = makePermalink(node);
-    let result = '<h2>';
-
     const parent = getParent(node);
-    result += span(
-        span(getQualifiedName(parent), 'subhead') +
-            span(
-                getQualifiedName(node),
-                hasTag(node, 'deprecated') ? 'head deprecated' : 'head'
-            ),
-        'stack'
-    );
-    result += renderPermalinkAnchor(permalink);
-    result += '</h2>';
 
-    result += renderFlags(node);
+    let result =
+        heading(
+            2,
+            getQualifiedName(parent),
+            getQualifiedName(node),
+            permalink,
+            { deprecated: hasTag(node, 'deprecated') }
+        ) + renderFlags(node);
 
     let body = '';
     if (node.extendedTypes) {
@@ -1549,59 +1590,62 @@ function renderClassSection(node: Reflection): string {
 
 function renderClassCard(node) {
     if (shouldIgnore(node) || !node.children) return '';
-    let result =
-        renderComment(node, 'block') +
-        '\n<hr>\n' +
-        '<dl><dt id="' +
-        node.children
-            .map((x) => {
-                let permalink = makePermalink(x);
-                let r = encodeURIComponent(permalink.anchor) + '">';
-                if (x.kind === 2048) {
-                    // Method
-                    r +=
-                        x.signatures
-                            .map((signature) => {
-                                let sigResult =
-                                    renderFlags(x, 'inline') +
-                                    '<strong>' +
-                                    x.name +
-                                    '</strong>';
-                                if (hasFlag(x, 'isOptional')) {
-                                    sigResult += span('?', 'modifier');
-                                }
-                                sigResult +=
-                                    renderPermalinkAnchor(permalink) +
-                                    render(signature) +
-                                    '</dt><dd>' +
-                                    renderComment(signature, 'block');
-                                return sigResult;
-                            })
-                            .join('</dd><dt><code>') + '</dd>';
-                } else if (x.kind === 1024) {
-                    // Property
-                    r += '<strong>' + x.name + '</strong>';
-                    if (hasFlag(x, 'isOptional')) {
-                        r += span('?', 'modifier');
+    let comment = renderComment(node, 'block');
+    if (comment) comment += '\n<hr>\n';
+    let body = '';
+    if (node.children) {
+        body =
+            '<dl><dt id="' +
+            node.children
+                .map((x) => {
+                    let permalink = makePermalink(x);
+                    let r = encodeURIComponent(permalink.anchor) + '">';
+                    if (x.kind === 2048) {
+                        // Method
+                        r +=
+                            x.signatures
+                                .map((signature) => {
+                                    let sigResult =
+                                        renderFlags(x, 'inline') +
+                                        '<strong>' +
+                                        x.name +
+                                        '</strong>';
+                                    if (hasFlag(x, 'isOptional')) {
+                                        sigResult += span('?', 'modifier');
+                                    }
+                                    sigResult +=
+                                        renderPermalinkAnchor(permalink) +
+                                        render(signature) +
+                                        '</dt><dd>' +
+                                        renderComment(signature, 'block');
+                                    return sigResult;
+                                })
+                                .join('</dd><dt><code>') + '</dd>';
+                    } else if (x.kind === 1024) {
+                        // Property
+                        r += '<strong>' + x.name + '</strong>';
+                        if (hasFlag(x, 'isOptional')) {
+                            r += span('?', 'modifier');
+                        }
+                        r +=
+                            punct(': ') +
+                            render(x.type) +
+                            renderPermalinkAnchor(permalink) +
+                            '</dt><dd>' +
+                            renderComment(x, 'block');
+                    } else {
+                        // Only expected a property or a method
+                        // in a "short" class/interface
+                        console.error(
+                            'Unexpected item in a "short" class/interface'
+                        );
                     }
-                    r +=
-                        punct(': ') +
-                        render(x.type) +
-                        renderPermalinkAnchor(permalink) +
-                        '</dt><dd>' +
-                        renderComment(x, 'block');
-                } else {
-                    // Only expected a property or a method
-                    // in a "short" class/interface
-                    console.error(
-                        'Unexpected item in a "short" class/interface'
-                    );
-                }
-                return r;
-            })
-            .join('\n</dd><dt id="');
-    result += '\n</dd></dl>\n';
-    return renderCard(node, getQualifiedName(node), result);
+                    return r;
+                })
+                .join('\n</dd><dt id="');
+        body += '\n</dd></dl>\n';
+    }
+    return renderCard(node, getQualifiedName(node), comment + body);
 }
 
 /**
@@ -1632,8 +1676,7 @@ function renderCommandCard(node) {
     }
     let params = [...signature.parameters];
 
-    let result = '<div>';
-    result += commandTag + punct('(');
+    let result = commandTag + punct('(');
     params.shift(); // The sender
     if (params.length > 0) {
         result += punct('[');
@@ -1685,7 +1728,7 @@ function renderCommandCard(node) {
         }
         result += '\n</dl>\n';
     }
-    result += '\n</div>';
+    result = div(result, 'code');
 
     return renderCard(
         node,
@@ -1735,17 +1778,19 @@ function renderPropertyCard(node) {
  */
 function renderEnumCard(node: Reflection): string {
     if (shouldIgnore(node)) return '';
-    let result = renderComment(node, 'block');
+    let comment = renderComment(node, 'block');
+    let body = '';
     if (node.children) {
-        result += '\n<hr>\n<dl>';
-        result += node.children
+        if (comment) comment += '\n<hr>';
+        body += '\n<dl>';
+        body += node.children
             .map((enumMember) => {
                 return render(enumMember, 'block');
             })
             .join('');
-        result += '</dl>';
+        body += '</dl>';
     }
-    return renderCard(node, '', result);
+    return renderCard(node, '', comment + body);
 }
 
 function renderTypeAliasCard(node: Reflection): string {
@@ -1754,7 +1799,10 @@ function renderTypeAliasCard(node: Reflection): string {
 
     const typeDef = render(node, 'block');
     if (typeDef) {
-        result += '\n<hr>\n' + div(typeDef, 'code');
+        if (result) {
+            result += '\n<hr>\n';
+        }
+        result += div(typeDef, 'code');
     }
     return renderCard(node, '', result);
 }
@@ -1803,8 +1851,9 @@ function renderGroup(node: Reflection, group: Reflection): string {
         .map((topic) => {
             let r = '';
             if (topic.title) {
-                r += '<h3 class="category-title">';
-                r += topic.title + '</h3>\n';
+                r = heading(3, '', topic.title, null, {
+                    className: 'category-title',
+                });
             }
             r += topic.children.map((x) => render(x, 'section')).join('');
             return r;
@@ -1868,12 +1917,12 @@ function render(node: Reflection | number, style = 'inline'): string {
         } else if (node.kind === 1) {
             // Modules
             const permalink = makePermalink(node);
-            let result = '<h2>';
-            result += '<span>' + getQualifiedName(node) + '</span>';
-            result += renderPermalinkAnchor(permalink);
-            result += '</h2>';
 
-            return section(result + renderGroups(node), { permalink });
+            const result =
+                heading(2, '', getQualifiedName(node), permalink) +
+                renderGroups(node);
+
+            return section(result, { permalink });
         }
         return renderGroups(node);
     }
@@ -2307,13 +2356,17 @@ abstract class Animal {
                                 .join('\n</dd><dt>\n');
                         result += '\n</dd>\n';
                     }
-                    if (node.type) {
+                    if (
+                        node.type &&
+                        (node.comment?.returns ||
+                            !isVoid(node.type as Reflection))
+                    ) {
                         result += '\n<dt>\n';
                         result +=
                             '<strong>→ </strong>' +
                             render(node.type as Reflection);
                         result += '\n</dt><dd>\n';
-                        if (node.comment && node.comment.returns) {
+                        if (node.comment?.returns) {
                             result += renderNotices(node, node.comment.returns);
                         }
                         result += '\n</dd>\n';

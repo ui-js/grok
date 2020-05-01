@@ -79,6 +79,33 @@ function list(items, className) {
     }
     return result;
 }
+function highlightingMark(content) {
+    return span(content +
+        '<svg class="highlighting-mark"><use xlink:href="#highlighting-mark-' +
+        (Math.floor(3 * Math.random()) + 1) +
+        '"></use></svg>', 'highlighting-mark-container');
+}
+function heading(level, subhead, head, permalink, options) {
+    const tag = 'h' + Number(level).toString();
+    let body = subhead ? span(subhead, 'subhead') : '';
+    if (permalink === null || permalink === void 0 ? void 0 : permalink.anchor) {
+        body += highlightingMark(span(head, (options === null || options === void 0 ? void 0 : options.deprecated) ? 'head deprecated' : 'head'));
+        body = span(body, 'stack');
+        body += renderPermalinkAnchor(permalink);
+    }
+    else {
+        body += span(head, (options === null || options === void 0 ? void 0 : options.deprecated) ? 'head deprecated' : 'head');
+        body = span(body, 'stack');
+    }
+    return ('<' +
+        tag +
+        ((options === null || options === void 0 ? void 0 : options.className) ? ' class="' + options.className + '"' : '') +
+        '>' +
+        body +
+        '</' +
+        tag +
+        '>');
+}
 function getReflectionByID(id, root = gNodes) {
     if (root.type !== 'reference' && root.id === id)
         return root;
@@ -335,8 +362,7 @@ function renderIndex(node, title, categories, options) {
         return '';
     let result = '';
     if (title) {
-        result = span(getQualifiedName(node), 'subhead') + span(title, 'head');
-        result = '\n<h3>' + result + '</h3>\n';
+        result = heading(3, getQualifiedName(node), title);
     }
     if (categories.length === 1 && categories[0].children.length <= 1) {
         return result;
@@ -505,6 +531,10 @@ function trimQuotes(str) {
 }
 function trimNewline(str) {
     return str.replace(/(\n+)$/g, '');
+}
+function isVoid(node) {
+    return (node.type === 'void' ||
+        (node.type === 'intrinsic' && node.name === 'void'));
 }
 function getQualifiedSymbol(parent, node) {
     if (node.kind === 0) {
@@ -801,12 +831,7 @@ function renderCard(node, displayName, content) {
     }
     const permalink = makePermalink(node);
     console.assert(!permalink.document);
-    let header = `\n<h3>`;
-    header += span(span(getQualifiedName(parent), 'subhead') +
-        span(displayName, hasTag(node, 'deprecated') ? 'head deprecated' : 'head') +
-        renderFlags(node, 'inline'), 'stack');
-    header += renderPermalinkAnchor(permalink);
-    header += '</h3>';
+    const header = heading(3, getQualifiedName(parent), displayName, permalink, { deprecated: hasTag(node, 'deprecated') });
     return section(header + content, { permalink, className: 'card' });
 }
 function renderMethodCard(node) {
@@ -870,13 +895,8 @@ function renderClassSection(node) {
         return render(node, 'card');
     }
     const permalink = makePermalink(node);
-    let result = '<h2>';
     const parent = getParent(node);
-    result += span(span(getQualifiedName(parent), 'subhead') +
-        span(getQualifiedName(node), hasTag(node, 'deprecated') ? 'head deprecated' : 'head'), 'stack');
-    result += renderPermalinkAnchor(permalink);
-    result += '</h2>';
-    result += renderFlags(node);
+    let result = heading(2, getQualifiedName(parent), getQualifiedName(node), permalink, { deprecated: hasTag(node, 'deprecated') }) + renderFlags(node);
     let body = '';
     if (node.extendedTypes) {
         body +=
@@ -923,53 +943,58 @@ function renderClassSection(node) {
 function renderClassCard(node) {
     if (shouldIgnore(node) || !node.children)
         return '';
-    let result = renderComment(node, 'block') +
-        '\n<hr>\n' +
-        '<dl><dt id="' +
-        node.children
-            .map((x) => {
-            let permalink = makePermalink(x);
-            let r = encodeURIComponent(permalink.anchor) + '">';
-            if (x.kind === 2048) {
-                r +=
-                    x.signatures
-                        .map((signature) => {
-                        let sigResult = renderFlags(x, 'inline') +
-                            '<strong>' +
-                            x.name +
-                            '</strong>';
+    let comment = renderComment(node, 'block');
+    if (comment)
+        comment += '\n<hr>\n';
+    let body = '';
+    if (node.children) {
+        body =
+            '<dl><dt id="' +
+                node.children
+                    .map((x) => {
+                    let permalink = makePermalink(x);
+                    let r = encodeURIComponent(permalink.anchor) + '">';
+                    if (x.kind === 2048) {
+                        r +=
+                            x.signatures
+                                .map((signature) => {
+                                let sigResult = renderFlags(x, 'inline') +
+                                    '<strong>' +
+                                    x.name +
+                                    '</strong>';
+                                if (hasFlag(x, 'isOptional')) {
+                                    sigResult += span('?', 'modifier');
+                                }
+                                sigResult +=
+                                    renderPermalinkAnchor(permalink) +
+                                        render(signature) +
+                                        '</dt><dd>' +
+                                        renderComment(signature, 'block');
+                                return sigResult;
+                            })
+                                .join('</dd><dt><code>') + '</dd>';
+                    }
+                    else if (x.kind === 1024) {
+                        r += '<strong>' + x.name + '</strong>';
                         if (hasFlag(x, 'isOptional')) {
-                            sigResult += span('?', 'modifier');
+                            r += span('?', 'modifier');
                         }
-                        sigResult +=
-                            renderPermalinkAnchor(permalink) +
-                                render(signature) +
+                        r +=
+                            punct(': ') +
+                                render(x.type) +
+                                renderPermalinkAnchor(permalink) +
                                 '</dt><dd>' +
-                                renderComment(signature, 'block');
-                        return sigResult;
-                    })
-                        .join('</dd><dt><code>') + '</dd>';
-            }
-            else if (x.kind === 1024) {
-                r += '<strong>' + x.name + '</strong>';
-                if (hasFlag(x, 'isOptional')) {
-                    r += span('?', 'modifier');
-                }
-                r +=
-                    punct(': ') +
-                        render(x.type) +
-                        renderPermalinkAnchor(permalink) +
-                        '</dt><dd>' +
-                        renderComment(x, 'block');
-            }
-            else {
-                console.error('Unexpected item in a "short" class/interface');
-            }
-            return r;
-        })
-            .join('\n</dd><dt id="');
-    result += '\n</dd></dl>\n';
-    return renderCard(node, getQualifiedName(node), result);
+                                renderComment(x, 'block');
+                    }
+                    else {
+                        console.error('Unexpected item in a "short" class/interface');
+                    }
+                    return r;
+                })
+                    .join('\n</dd><dt id="');
+        body += '\n</dd></dl>\n';
+    }
+    return renderCard(node, getQualifiedName(node), comment + body);
 }
 function renderCommandCard(node) {
     let parent = getParent(node);
@@ -989,8 +1014,7 @@ function renderCommandCard(node) {
         return '';
     }
     let params = [...signature.parameters];
-    let result = '<div>';
-    result += commandTag + punct('(');
+    let result = commandTag + punct('(');
     params.shift();
     if (params.length > 0) {
         result += punct('[');
@@ -1037,7 +1061,7 @@ function renderCommandCard(node) {
         }
         result += '\n</dl>\n';
     }
-    result += '\n</div>';
+    result = div(result, 'code');
     return renderCard(node, span('command', 'modifier-tag') +
         '<strong>' +
         '&#8203;' +
@@ -1062,17 +1086,20 @@ function renderPropertyCard(node) {
 function renderEnumCard(node) {
     if (shouldIgnore(node))
         return '';
-    let result = renderComment(node, 'block');
+    let comment = renderComment(node, 'block');
+    let body = '';
     if (node.children) {
-        result += '\n<hr>\n<dl>';
-        result += node.children
+        if (comment)
+            comment += '\n<hr>';
+        body += '\n<dl>';
+        body += node.children
             .map((enumMember) => {
             return render(enumMember, 'block');
         })
             .join('');
-        result += '</dl>';
+        body += '</dl>';
     }
-    return renderCard(node, '', result);
+    return renderCard(node, '', comment + body);
 }
 function renderTypeAliasCard(node) {
     if (shouldIgnore(node))
@@ -1080,7 +1107,10 @@ function renderTypeAliasCard(node) {
     let result = renderComment(node, 'block');
     const typeDef = render(node, 'block');
     if (typeDef) {
-        result += '\n<hr>\n' + div(typeDef, 'code');
+        if (result) {
+            result += '\n<hr>\n';
+        }
+        result += div(typeDef, 'code');
     }
     return renderCard(node, '', result);
 }
@@ -1106,8 +1136,9 @@ function renderGroup(node, group) {
         .map((topic) => {
         let r = '';
         if (topic.title) {
-            r += '<h3 class="category-title">';
-            r += topic.title + '</h3>\n';
+            r = heading(3, '', topic.title, null, {
+                className: 'category-title',
+            });
         }
         r += topic.children.map((x) => render(x, 'section')).join('');
         return r;
@@ -1128,7 +1159,7 @@ function renderGroups(node) {
             .join('\n\n'));
 }
 function render(node, style = 'inline') {
-    var _a, _b;
+    var _a, _b, _c, _d;
     if (typeof node === 'undefined')
         return '';
     if (typeof node === 'number')
@@ -1144,11 +1175,9 @@ function render(node, style = 'inline') {
         }
         else if (node.kind === 1) {
             const permalink = makePermalink(node);
-            let result = '<h2>';
-            result += '<span>' + getQualifiedName(node) + '</span>';
-            result += renderPermalinkAnchor(permalink);
-            result += '</h2>';
-            return section(result + renderGroups(node), { permalink });
+            const result = heading(2, '', getQualifiedName(node), permalink) +
+                renderGroups(node);
+            return section(result, { permalink });
         }
         return renderGroups(node);
     }
@@ -1469,13 +1498,15 @@ function render(node, style = 'inline') {
                                     .join('\n</dd><dt>\n');
                         result += '\n</dd>\n';
                     }
-                    if (node.type) {
+                    if (node.type &&
+                        (((_c = node.comment) === null || _c === void 0 ? void 0 : _c.returns) ||
+                            !isVoid(node.type))) {
                         result += '\n<dt>\n';
                         result +=
                             '<strong>→ </strong>' +
                                 render(node.type);
                         result += '\n</dt><dd>\n';
-                        if (node.comment && node.comment.returns) {
+                        if ((_d = node.comment) === null || _d === void 0 ? void 0 : _d.returns) {
                             result += renderNotices(node, node.comment.returns);
                         }
                         result += '\n</dd>\n';
