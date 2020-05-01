@@ -80,7 +80,6 @@ function build(argv): void {
     .stack {
         display: flex;
         flex-flow: column;
-
     }
 
     /* For the sub-heading */

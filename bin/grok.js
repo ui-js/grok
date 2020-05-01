@@ -777,7 +777,7 @@ function shouldIgnore(node) {
         hasTag(node, 'ignore') ||
         hasTag(node, 'internal'));
 }
-function renderCardHeader(node, displayName) {
+function renderCard(node, displayName, content) {
     const parent = getParent(node);
     if (!displayName) {
         displayName = `<strong>${getName(node)}</strong>`;
@@ -800,18 +800,14 @@ function renderCardHeader(node, displayName) {
         }
     }
     const permalink = makePermalink(node);
-    let result = `\n<section class="card" id="${encodeURIComponent(permalink.anchor)}">\n`;
     console.assert(!permalink.document);
-    result += `\n<h3>`;
-    result += span(span(getQualifiedName(parent), 'subhead') +
-        span(displayName, hasTag(node, 'deprecated') ? 'deprecated' : '') +
+    let header = `\n<h3>`;
+    header += span(span(getQualifiedName(parent), 'subhead') +
+        span(displayName, hasTag(node, 'deprecated') ? 'head deprecated' : 'head') +
         renderFlags(node, 'inline'), 'stack');
-    result += renderPermalinkAnchor(permalink);
-    result += '</h3>';
-    return result;
-}
-function renderCardFooter(node) {
-    return renderComment(node, 'card') + '\n</section>\n';
+    header += renderPermalinkAnchor(permalink);
+    header += '</h3>';
+    return section(header + content, { permalink, className: 'card' });
 }
 function renderMethodCard(node) {
     if (shouldIgnore(node))
@@ -829,7 +825,7 @@ function renderMethodCard(node) {
     else {
         shortName = `<strong>${node.name}</strong>`;
     }
-    return (renderCardHeader(node, displayName) +
+    return renderCard(node, displayName, renderComment(node, 'block') +
         div(node.signatures
             .map((signature) => {
             let result = renderFlags(signature);
@@ -837,8 +833,7 @@ function renderMethodCard(node) {
             result += render(signature, 'block');
             return div(result);
         })
-            .join('\n<hr>\n')) +
-        renderCardFooter(node));
+            .join('\n<hr>\n')));
 }
 function renderAccessorCard(node) {
     if (shouldIgnore(node))
@@ -864,7 +859,7 @@ function renderAccessorCard(node) {
         body += span('write only', 'modifier-tag');
     }
     body += render(signature, 'block');
-    return (renderCardHeader(node, displayName) + div(body) + renderCardFooter(node));
+    return renderCard(node, displayName, div(body) + renderComment(node, 'block'));
 }
 function renderClassSection(node) {
     if (shouldIgnore(node) || !node.children)
@@ -875,15 +870,10 @@ function renderClassSection(node) {
         return render(node, 'card');
     }
     const permalink = makePermalink(node);
-    let result = '<h2  ';
-    if (hasTag(node, 'deprecated'))
-        result += ' class="deprecated"';
-    result += '>';
+    let result = '<h2>';
     const parent = getParent(node);
-    if (parent) {
-        result += span(getQualifiedName(parent), 'subhead');
-    }
-    result += '<span>' + getQualifiedName(node) + '</span>';
+    result += span(span(getQualifiedName(parent), 'subhead') +
+        span(getQualifiedName(node), hasTag(node, 'deprecated') ? 'head deprecated' : 'head'), 'stack');
     result += renderPermalinkAnchor(permalink);
     result += '</h2>';
     result += renderFlags(node);
@@ -933,52 +923,53 @@ function renderClassSection(node) {
 function renderClassCard(node) {
     if (shouldIgnore(node) || !node.children)
         return '';
-    let result = renderCardHeader(node, getQualifiedName(node));
-    result += '<dl><dt id="';
-    result += node.children
-        .map((x) => {
-        let permalink = makePermalink(x);
-        let r = encodeURIComponent(permalink.anchor) + '">';
-        if (x.kind === 2048) {
-            r +=
-                x.signatures
-                    .map((signature) => {
-                    let sigResult = renderFlags(x, 'inline') +
-                        '<strong>' +
-                        x.name +
-                        '</strong>';
-                    if (hasFlag(x, 'isOptional')) {
-                        sigResult += span('?', 'modifier');
-                    }
-                    sigResult +=
-                        renderPermalinkAnchor(permalink) +
-                            render(signature) +
-                            '</dt><dd>' +
-                            renderComment(signature, 'card');
-                    return sigResult;
-                })
-                    .join('</dd><dt><code>') + '</dd>';
-        }
-        else if (x.kind === 1024) {
-            r += '<strong>' + x.name + '</strong>';
-            if (hasFlag(x, 'isOptional')) {
-                r += span('?', 'modifier');
+    let result = renderComment(node, 'block') +
+        '\n<hr>\n' +
+        '<dl><dt id="' +
+        node.children
+            .map((x) => {
+            let permalink = makePermalink(x);
+            let r = encodeURIComponent(permalink.anchor) + '">';
+            if (x.kind === 2048) {
+                r +=
+                    x.signatures
+                        .map((signature) => {
+                        let sigResult = renderFlags(x, 'inline') +
+                            '<strong>' +
+                            x.name +
+                            '</strong>';
+                        if (hasFlag(x, 'isOptional')) {
+                            sigResult += span('?', 'modifier');
+                        }
+                        sigResult +=
+                            renderPermalinkAnchor(permalink) +
+                                render(signature) +
+                                '</dt><dd>' +
+                                renderComment(signature, 'block');
+                        return sigResult;
+                    })
+                        .join('</dd><dt><code>') + '</dd>';
             }
-            r +=
-                punct(': ') +
-                    render(x.type) +
-                    renderPermalinkAnchor(permalink) +
-                    '</dt><dd>' +
-                    renderComment(x, 'card');
-        }
-        else {
-            console.error('Unexpected item in a "short" class/interface');
-        }
-        return r;
-    })
-        .join('\n</dd><dt id="');
+            else if (x.kind === 1024) {
+                r += '<strong>' + x.name + '</strong>';
+                if (hasFlag(x, 'isOptional')) {
+                    r += span('?', 'modifier');
+                }
+                r +=
+                    punct(': ') +
+                        render(x.type) +
+                        renderPermalinkAnchor(permalink) +
+                        '</dt><dd>' +
+                        renderComment(x, 'block');
+            }
+            else {
+                console.error('Unexpected item in a "short" class/interface');
+            }
+            return r;
+        })
+            .join('\n</dd><dt id="');
     result += '\n</dd></dl>\n';
-    return result + renderCardFooter(node);
+    return renderCard(node, getQualifiedName(node), result);
 }
 function renderCommandCard(node) {
     let parent = getParent(node);
@@ -998,11 +989,7 @@ function renderCommandCard(node) {
         return '';
     }
     let params = [...signature.parameters];
-    let result = renderCardHeader(node, '<span class="modifier-tag">command</span><strong>' +
-        '&#8203;' +
-        node.name +
-        '</strong>');
-    result += '<div>';
+    let result = '<div>';
     result += commandTag + punct('(');
     params.shift();
     if (params.length > 0) {
@@ -1033,7 +1020,7 @@ function renderCommandCard(node) {
                             r += punct(': ') + typeDef;
                         }
                         r += '\n</dt><dd>\n';
-                        r += renderComment(param, 'card');
+                        r += renderComment(param, 'block');
                         return r;
                     })
                         .join('\n</dd><dt>\n');
@@ -1051,7 +1038,11 @@ function renderCommandCard(node) {
         result += '\n</dl>\n';
     }
     result += '\n</div>';
-    return result + renderCardFooter(node);
+    return renderCard(node, span('command', 'modifier-tag') +
+        '<strong>' +
+        '&#8203;' +
+        node.name +
+        '</strong>', result + renderComment(node, 'block'));
 }
 function renderPropertyCard(node) {
     if (shouldIgnore(node))
@@ -1066,16 +1057,14 @@ function renderPropertyCard(node) {
         shortName = `<strong>${node.name}</strong>`;
         displayName = parent.name + '.' + shortName;
     }
-    return (renderCardHeader(node, displayName) +
-        render(node.type, 'block') +
-        renderCardFooter(node));
+    return renderCard(node, displayName, render(node.type, 'block') + renderComment(node, 'block'));
 }
 function renderEnumCard(node) {
     if (shouldIgnore(node))
         return '';
-    let result = renderCardHeader(node);
+    let result = renderComment(node, 'block');
     if (node.children) {
-        result += '<dl>';
+        result += '\n<hr>\n<dl>';
         result += node.children
             .map((enumMember) => {
             return render(enumMember, 'block');
@@ -1083,18 +1072,17 @@ function renderEnumCard(node) {
             .join('');
         result += '</dl>';
     }
-    return result + renderCardFooter(node);
+    return renderCard(node, '', result);
 }
 function renderTypeAliasCard(node) {
     if (shouldIgnore(node))
         return '';
-    let result = renderCardHeader(node);
+    let result = renderComment(node, 'block');
     const typeDef = render(node, 'block');
     if (typeDef) {
-        result += div(typeDef, 'code');
+        result += '\n<hr>\n' + div(typeDef, 'code');
     }
-    result += renderCardFooter(node);
-    return result;
+    return renderCard(node, '', result);
 }
 function renderGroup(node, group) {
     const topics = getCategories(node, group.kind);
@@ -1378,9 +1366,7 @@ function render(node, style = 'inline') {
             break;
         case 32:
             if (style === 'card' || style === 'section') {
-                result = renderCardHeader(node);
-                result += div(render(node, 'block'));
-                result += renderCardFooter(node);
+                result = renderCard(node, '', div(render(node, 'block')) + renderComment(node, 'block'));
             }
             else {
                 result += '<strong>' + node.name + '</strong>';

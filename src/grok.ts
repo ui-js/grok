@@ -1297,11 +1297,14 @@ function shouldIgnore(node: Reflection): boolean {
 }
 
 /**
- * Render the top portion of the card, including the node name,
- * flags, anchor
+ * Render a card with a header, content and footer
  */
 
-function renderCardHeader(node: Reflection, displayName?: string): string {
+function renderCard(
+    node: Reflection,
+    displayName: string,
+    content: string
+): string {
     const parent = getParent(node);
     if (!displayName) {
         displayName = `<strong>${getName(node)}</strong>`;
@@ -1333,14 +1336,11 @@ function renderCardHeader(node: Reflection, displayName?: string): string {
     }
 
     const permalink = makePermalink(node);
-
-    let result = `\n<section class="card" id="${encodeURIComponent(
-        permalink.anchor
-    )}">\n`;
     // The permalink should refer to this document (and therefore be empty)
     console.assert(!permalink.document);
-    result += `\n<h3>`;
-    result += span(
+
+    let header = `\n<h3>`;
+    header += span(
         span(getQualifiedName(parent), 'subhead') +
             span(
                 displayName,
@@ -1349,19 +1349,10 @@ function renderCardHeader(node: Reflection, displayName?: string): string {
             renderFlags(node, 'inline'),
         'stack'
     );
-    result += renderPermalinkAnchor(permalink);
-    result += '</h3>';
+    header += renderPermalinkAnchor(permalink);
+    header += '</h3>';
 
-    return result;
-}
-
-/**
- * Render the bottom portion of the card, including the node comments
- * and miscellaneous tags.
- */
-
-function renderCardFooter(node: Reflection): string {
-    return renderComment(node, 'card') + '\n</section>\n';
+    return section(header + content, { permalink, className: 'card' });
 }
 
 /**
@@ -1398,26 +1389,27 @@ function renderMethodCard(node: Reflection): string {
     // - comments about this function
     // - details about each of the arguments
 
-    return (
-        renderCardHeader(node, displayName) +
-        div(
-            node.signatures
-                .map((signature) => {
-                    let result = renderFlags(signature);
-                    // Display the "short" signature (kind 4096)
-                    result += div(
-                        shortName + render(signature, 'inline'),
-                        'code'
-                    );
+    return renderCard(
+        node,
+        displayName,
+        renderComment(node, 'block') +
+            div(
+                node.signatures
+                    .map((signature) => {
+                        let result = renderFlags(signature);
+                        // Display the "short" signature (kind 4096)
+                        result += div(
+                            shortName + render(signature, 'inline'),
+                            'code'
+                        );
 
-                    // Display info about each of the params...
-                    result += render(signature, 'block');
+                        // Display info about each of the params...
+                        result += render(signature, 'block');
 
-                    return div(result);
-                })
-                .join('\n<hr>\n')
-        ) +
-        renderCardFooter(node)
+                        return div(result);
+                    })
+                    .join('\n<hr>\n')
+            )
     );
 }
 
@@ -1451,8 +1443,10 @@ function renderAccessorCard(node: Reflection) {
     }
     body += render(signature, 'block');
 
-    return (
-        renderCardHeader(node, displayName) + div(body) + renderCardFooter(node)
+    return renderCard(
+        node,
+        displayName,
+        div(body) + renderComment(node, 'block')
     );
 }
 
@@ -1555,55 +1549,59 @@ function renderClassSection(node: Reflection): string {
 
 function renderClassCard(node) {
     if (shouldIgnore(node) || !node.children) return '';
-    let result = renderCardHeader(node, getQualifiedName(node));
-    result += '<dl><dt id="';
-    result += node.children
-        .map((x) => {
-            let permalink = makePermalink(x);
-            let r = encodeURIComponent(permalink.anchor) + '">';
-            if (x.kind === 2048) {
-                // Method
-                r +=
-                    x.signatures
-                        .map((signature) => {
-                            let sigResult =
-                                renderFlags(x, 'inline') +
-                                '<strong>' +
-                                x.name +
-                                '</strong>';
-                            if (hasFlag(x, 'isOptional')) {
-                                sigResult += span('?', 'modifier');
-                            }
-                            sigResult +=
-                                renderPermalinkAnchor(permalink) +
-                                render(signature) +
-                                '</dt><dd>' +
-                                renderComment(signature, 'card');
-                            return sigResult;
-                        })
-                        .join('</dd><dt><code>') + '</dd>';
-            } else if (x.kind === 1024) {
-                // Property
-                r += '<strong>' + x.name + '</strong>';
-                if (hasFlag(x, 'isOptional')) {
-                    r += span('?', 'modifier');
+    let result =
+        renderComment(node, 'block') +
+        '\n<hr>\n' +
+        '<dl><dt id="' +
+        node.children
+            .map((x) => {
+                let permalink = makePermalink(x);
+                let r = encodeURIComponent(permalink.anchor) + '">';
+                if (x.kind === 2048) {
+                    // Method
+                    r +=
+                        x.signatures
+                            .map((signature) => {
+                                let sigResult =
+                                    renderFlags(x, 'inline') +
+                                    '<strong>' +
+                                    x.name +
+                                    '</strong>';
+                                if (hasFlag(x, 'isOptional')) {
+                                    sigResult += span('?', 'modifier');
+                                }
+                                sigResult +=
+                                    renderPermalinkAnchor(permalink) +
+                                    render(signature) +
+                                    '</dt><dd>' +
+                                    renderComment(signature, 'block');
+                                return sigResult;
+                            })
+                            .join('</dd><dt><code>') + '</dd>';
+                } else if (x.kind === 1024) {
+                    // Property
+                    r += '<strong>' + x.name + '</strong>';
+                    if (hasFlag(x, 'isOptional')) {
+                        r += span('?', 'modifier');
+                    }
+                    r +=
+                        punct(': ') +
+                        render(x.type) +
+                        renderPermalinkAnchor(permalink) +
+                        '</dt><dd>' +
+                        renderComment(x, 'block');
+                } else {
+                    // Only expected a property or a method
+                    // in a "short" class/interface
+                    console.error(
+                        'Unexpected item in a "short" class/interface'
+                    );
                 }
-                r +=
-                    punct(': ') +
-                    render(x.type) +
-                    renderPermalinkAnchor(permalink) +
-                    '</dt><dd>' +
-                    renderComment(x, 'card');
-            } else {
-                // Only expected a property or a method
-                // in a "short" class/interface
-                console.error('Unexpected item in a "short" class/interface');
-            }
-            return r;
-        })
-        .join('\n</dd><dt id="');
+                return r;
+            })
+            .join('\n</dd><dt id="');
     result += '\n</dd></dl>\n';
-    return result + renderCardFooter(node);
+    return renderCard(node, getQualifiedName(node), result);
 }
 
 /**
@@ -1634,16 +1632,7 @@ function renderCommandCard(node) {
     }
     let params = [...signature.parameters];
 
-    let result = renderCardHeader(
-        node,
-        // Note: the '&#8203;' (zws) after 'command' is important to ensure
-        // that double-clicking on the name selects only the name
-        '<span class="modifier-tag">command</span><strong>' +
-            '&#8203;' +
-            node.name +
-            '</strong>'
-    );
-    result += '<div>';
+    let result = '<div>';
     result += commandTag + punct('(');
     params.shift(); // The sender
     if (params.length > 0) {
@@ -1678,7 +1667,7 @@ function renderCommandCard(node) {
                             r += punct(': ') + typeDef;
                         }
                         r += '\n</dt><dd>\n';
-                        r += renderComment(param, 'card');
+                        r += renderComment(param, 'block');
                         return r;
                     })
                     .join('\n</dd><dt>\n');
@@ -1698,7 +1687,17 @@ function renderCommandCard(node) {
     }
     result += '\n</div>';
 
-    return result + renderCardFooter(node);
+    return renderCard(
+        node,
+        // Note: the '&#8203;' (zws) after 'command' is important to ensure
+        // that double-clicking on the name selects only the name
+        span('command', 'modifier-tag') +
+            '<strong>' +
+            '&#8203;' +
+            node.name +
+            '</strong>',
+        result + renderComment(node, 'block')
+    );
 }
 
 /**
@@ -1723,10 +1722,10 @@ function renderPropertyCard(node) {
         shortName = `<strong>${node.name}</strong>`;
         displayName = parent.name + '.' + shortName;
     }
-    return (
-        renderCardHeader(node, displayName) +
-        render(node.type, 'block') +
-        renderCardFooter(node)
+    return renderCard(
+        node,
+        displayName,
+        render(node.type, 'block') + renderComment(node, 'block')
     );
 }
 
@@ -1734,11 +1733,11 @@ function renderPropertyCard(node) {
  * A card for an enum
  * kind = 4
  */
-function renderEnumCard(node) {
+function renderEnumCard(node: Reflection): string {
     if (shouldIgnore(node)) return '';
-    let result = renderCardHeader(node);
+    let result = renderComment(node, 'block');
     if (node.children) {
-        result += '<dl>';
+        result += '\n<hr>\n<dl>';
         result += node.children
             .map((enumMember) => {
                 return render(enumMember, 'block');
@@ -1746,19 +1745,18 @@ function renderEnumCard(node) {
             .join('');
         result += '</dl>';
     }
-    return result + renderCardFooter(node);
+    return renderCard(node, '', result);
 }
 
-function renderTypeAliasCard(node) {
+function renderTypeAliasCard(node: Reflection): string {
     if (shouldIgnore(node)) return '';
-    let result = renderCardHeader(node);
+    let result = renderComment(node, 'block');
 
     const typeDef = render(node, 'block');
     if (typeDef) {
-        result += div(typeDef, 'code');
+        result += '\n<hr>\n' + div(typeDef, 'code');
     }
-    result += renderCardFooter(node);
-    return result;
+    return renderCard(node, '', result);
 }
 
 /**
@@ -2184,9 +2182,11 @@ abstract class Animal {
         case 32: // Variable
             // e.g. "a?: number" as a property of an object
             if (style === 'card' || style === 'section') {
-                result = renderCardHeader(node);
-                result += div(render(node, 'block'));
-                result += renderCardFooter(node);
+                result = renderCard(
+                    node,
+                    '',
+                    div(render(node, 'block')) + renderComment(node, 'block')
+                );
             } else {
                 result += '<strong>' + node.name + '</strong>';
                 if (hasFlag(node, 'isOptional')) {
