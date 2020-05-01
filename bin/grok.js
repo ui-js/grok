@@ -972,7 +972,7 @@ function renderClassCard(node) {
                                         renderComment(signature, 'block');
                                 return sigResult;
                             })
-                                .join('</dd><dt><code>') + '</dd>';
+                                .join('</dd><dt>') + '</dd>';
                     }
                     else if (x.kind === 1024) {
                         r += '<strong>' + x.name + '</strong>';
