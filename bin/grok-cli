@@ -175,12 +175,17 @@ function sortGroups(groups) {
 }
 function getCategories(node, kind) {
     let result = [];
-    let children = node.groups && node.groups.filter((x) => x.kind === kind);
+    let children = node.groups && node.groups.filter((x) => (x.kind & kind) !== 0);
     if (!children || children.length !== 1) {
         if (node.categories) {
             return sortOtherCategoryAtEnd(node.categories);
         }
-        return node.children.filter((x) => x.kind === kind);
+        return [
+            {
+                title: '',
+                children: node.children.filter((x) => (x.kind & kind) !== 0),
+            },
+        ];
     }
     if (children[0].categories) {
         result = children[0].categories.map((category) => {
@@ -192,6 +197,7 @@ function getCategories(node, kind) {
         result = sortOtherCategoryAtEnd(result);
     }
     else {
+        console.assert(typeof children[0].children[0] === 'number');
         result = [
             {
                 title: '',
@@ -296,9 +302,14 @@ function renderIndex(node, title, categories, options) {
             r += '\n<div class="index"><ul><li>';
             r += category.children
                 .map((x) => {
-                if (typeof x === 'number')
-                    x = getReflectionByID(x);
-                return renderPermalink(makePermalink(x), getName(x) + options.symbolSuffix);
+                let n;
+                if (typeof x === 'number') {
+                    n = getReflectionByID(x);
+                }
+                else {
+                    n = x;
+                }
+                return renderPermalink(makePermalink(n), getName(n) + options.symbolSuffix);
             })
                 .filter((x) => !!x)
                 .join('</li>\n<li>');
@@ -692,7 +703,7 @@ function renderComment(node, style) {
     if (node.comment.text) {
         result += renderNotices(node, node.comment.text) + newLine;
     }
-    const remarks = getTag(node.comment, 'remarks');
+    const remarks = getTag(node, 'remarks');
     if (remarks) {
         result += renderNotices(node, remarks) + newLine;
     }
@@ -925,7 +936,7 @@ function renderClassCard(node) {
                             renderComment(signature, 'card');
                     return sigResult;
                 })
-                    .join('</dd><dt><cade>') + '</dd>';
+                    .join('</dd><dt><code>') + '</dd>';
         }
         else if (x.kind === 1024) {
             r += '<strong>' + x.name + '</strong>';
@@ -1111,6 +1122,7 @@ function renderGroups(node) {
             .join('\n\n'));
 }
 function render(node, style = 'inline') {
+    var _a, _b;
     if (typeof node === 'undefined')
         return '';
     if (typeof node === 'number')
@@ -1136,137 +1148,146 @@ function render(node, style = 'inline') {
         return renderGroups(node);
     }
     let parent = getParent(node);
-    if (node.type === 'abstract') {
-        console.error('Unexpected node type ', node.type);
-    }
-    if (node.type === 'array') {
-        return render(node.elementType, 'inline') + punct('[]');
-    }
-    if (node.type === 'conditionals') {
-        console.error('Unexpected node type ', node.type);
-    }
-    if (node.type === 'index') {
-        console.error('Unexpected node type ', node.type);
-    }
-    if (node.type === 'indexedAccess') {
-        return (render(node.objectType) +
-            punct('[') +
-            render(node.indexType) +
-            punct(']'));
-    }
-    if (node.type === 'inferred') {
-        console.error('Unexpected node type ', node.type);
-    }
-    if (node.type === 'intersection') {
-        if (style === 'block') {
-            return ('<ul class="type-block"><li>' +
-                node.types
-                    .map((x) => render(x))
-                    .filter((x) => !!x)
-                    .join(punct(' &amp; ') + '</li>\n<li>') +
-                '</li></ul>');
+    if (typeof node.kind === 'undefined') {
+        if (node.type === 'abstract') {
+            console.error('Unexpected node type ', node.type);
         }
-        return node.types
-            .map((x) => render(x))
-            .filter((x) => !!x)
-            .join(punct(' &amp; '));
-    }
-    if (node.type === 'intrinsic') {
-        return span(node.name, 'keyword');
-    }
-    if (node.type === 'predicate') {
-        console.error('Unexpected node type ', node.type);
-    }
-    if (node.type === 'reference') {
-        let typeArguments = '';
-        if (node.typeArguments) {
-            typeArguments =
-                punct('&lt;') +
-                    node.typeArguments.map((x) => render(x)).join(punct(', ')) +
-                    punct('&gt;');
+        if (node.type === 'array') {
+            return render(node.elementType, 'inline') + punct('[]');
         }
-        let candidate;
-        if (typeof node.id !== 'undefined') {
-            candidate = getReflectionByID(node.id);
+        if (node.type === 'conditionals') {
+            console.error('Unexpected node type ', node.type);
         }
-        if (!candidate) {
-            candidate = getReflectionByName(node.name, parent, 4 | 128 | 256 | 4194304);
+        if (node.type === 'index') {
+            console.error('Unexpected node type ', node.type);
         }
-        if (candidate) {
-            const permalink = makePermalink(candidate);
-            if (candidate.kind === 16) {
-                permalink.title = parent.name + '.' + node.name;
+        if (node.type === 'indexedAccess') {
+            return (render(node.objectType) +
+                punct('[') +
+                render(node.indexType) +
+                punct(']'));
+        }
+        if (node.type === 'inferred') {
+            console.error('Unexpected node type ', node.type);
+        }
+        if (node.type === 'intersection') {
+            if (style === 'block') {
+                return ('<ul class="type-block"><li>' +
+                    node.types
+                        .map((x) => render(x))
+                        .filter((x) => !!x)
+                        .join(punct(' &amp; ') + '</li>\n<li>') +
+                    '</li></ul>');
             }
-            else {
-                permalink.title = node.name;
+            return node.types
+                .map((x) => render(x))
+                .filter((x) => !!x)
+                .join(punct(' &amp; '));
+        }
+        if (node.type === 'intrinsic') {
+            return span(node.name, 'keyword');
+        }
+        if (node.type === 'predicate') {
+            console.error('Unexpected node type ', node.type);
+        }
+        if (node.type === 'reference') {
+            let typeArguments = '';
+            if (node.typeArguments) {
+                typeArguments =
+                    punct('&lt;') +
+                        node.typeArguments.map((x) => render(x)).join(punct(', ')) +
+                        punct('&gt;');
             }
-            return renderPermalink(permalink) + typeArguments;
-        }
-        candidate = getReflectionByName(node.name, undefined, 4 | 128 | 256 | 4194304);
-        if (candidate) {
-            return (renderPermalink(makePermalink(candidate), node.name) +
-                typeArguments);
-        }
-        if (candidate) {
-            return node.name + typeArguments;
-        }
-        if ([
-            'Object',
-            'Function',
-            'Boolean',
-            'Symbol',
-            'String',
-            'RegExp',
-            'Object',
-            'Number',
-            'BigInt',
-            'Math',
-            'Date',
-            'Infinity',
-            'NaN',
-            'globalThis',
-            'Error',
-            'AggregateError',
-            'InternalError',
-            'RangeError',
-            'ReferenceError',
-            'SyntaxError',
-            'TypeError',
-            'URIError',
-            'Array',
-            'Int8Array',
-            'Uint8Array',
-            'Uint8Array',
-            'Uint8ClampedArray',
-            'Int16Array',
-            'Uint16Array',
-            'Int32Array',
-            'Uint32Array',
-            'Float32Array',
-            'Float64Array',
-            'BigInt64Array',
-            'BigUint64Array',
-            'Map',
-            'Set',
-            'WeakMap',
-            'WeakSet',
-            'ArrayBuffer',
-            'SharedArrayBuffer',
-            'Atomics',
-            'DataView',
-            'JSON',
-            'Promise',
-            'Generator',
-            'GeneratorFunction',
-            'AsyncFunction',
-            'Iterator',
-            'AsyncIterator',
-            'Reflect',
-            'Proxy',
-            'Intl',
-            'WebAssembly',
-        ].includes(node.name)) {
-            return ('<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/' +
+            let candidate;
+            if (typeof node.id !== 'undefined') {
+                candidate = getReflectionByID(node.id);
+            }
+            if (!candidate) {
+                candidate = getReflectionByName(node.name, parent, 4 | 128 | 256 | 4194304);
+            }
+            if (candidate) {
+                const permalink = makePermalink(candidate);
+                if (candidate.kind === 16) {
+                    permalink.title = parent.name + '.' + node.name;
+                }
+                else {
+                    permalink.title = node.name;
+                }
+                return renderPermalink(permalink) + typeArguments;
+            }
+            candidate = getReflectionByName(node.name, undefined, 4 | 128 | 256 | 4194304);
+            if (candidate) {
+                return (renderPermalink(makePermalink(candidate), node.name) +
+                    typeArguments);
+            }
+            if (candidate) {
+                return node.name + typeArguments;
+            }
+            if ([
+                'Object',
+                'Function',
+                'Boolean',
+                'Symbol',
+                'String',
+                'RegExp',
+                'Object',
+                'Number',
+                'BigInt',
+                'Math',
+                'Date',
+                'Infinity',
+                'NaN',
+                'globalThis',
+                'Error',
+                'AggregateError',
+                'InternalError',
+                'RangeError',
+                'ReferenceError',
+                'SyntaxError',
+                'TypeError',
+                'URIError',
+                'Array',
+                'Int8Array',
+                'Uint8Array',
+                'Uint8Array',
+                'Uint8ClampedArray',
+                'Int16Array',
+                'Uint16Array',
+                'Int32Array',
+                'Uint32Array',
+                'Float32Array',
+                'Float64Array',
+                'BigInt64Array',
+                'BigUint64Array',
+                'Map',
+                'Set',
+                'WeakMap',
+                'WeakSet',
+                'ArrayBuffer',
+                'SharedArrayBuffer',
+                'Atomics',
+                'DataView',
+                'JSON',
+                'Promise',
+                'Generator',
+                'GeneratorFunction',
+                'AsyncFunction',
+                'Iterator',
+                'AsyncIterator',
+                'Reflect',
+                'Proxy',
+                'Intl',
+                'WebAssembly',
+            ].includes(node.name)) {
+                return ('<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/' +
+                    node.name +
+                    '" class="externallink">' +
+                    node.name +
+                    '<svg><use xlink:href="#external-link"></use></svg>' +
+                    '</a>' +
+                    typeArguments);
+            }
+            return ('<a href="https://developer.mozilla.org/Web/API/' +
                 node.name +
                 '" class="externallink">' +
                 node.name +
@@ -1274,57 +1295,50 @@ function render(node, style = 'inline') {
                 '</a>' +
                 typeArguments);
         }
-        return ('<a href="https://developer.mozilla.org/Web/API/' +
-            node.name +
-            '" class="externallink">' +
-            node.name +
-            '<svg><use xlink:href="#external-link"></use></svg>' +
-            '</a>' +
-            typeArguments);
-    }
-    if (node.type === 'reflection') {
-        return render(node.declaration, style);
-    }
-    if (node.type === 'stringLiteral') {
-        return span('"' + node.value + '"', 'stringLiteral');
-    }
-    if (node.type === 'tuple') {
-        return (punct('[') +
-            node.elements
-                .map((x) => render(x))
-                .filter((x) => !!x)
-                .join(punct(', ')) +
-            punct(']'));
-    }
-    if (node.type === 'typeOperator') {
-        return span(node.operator + ' ', 'keyword') + render(node.target);
-    }
-    if (node.type === 'typeParameter') {
-        let result = renderPermalink(makePermalink(node));
-        if (node.constraint) {
-            result += span(' extends ', 'keyword');
-            result += render(node.constraint);
+        if (node.type === 'reflection') {
+            return render(node.declaration, style);
         }
-        return result;
-    }
-    if (node.type === 'union') {
-        if (style === 'block' && !everyStringLiteral(node.types)) {
-            return ('<ul class="type-block"><li>' +
-                punct('| ') +
-                node.types
+        if (node.type === 'stringLiteral') {
+            return span('"' + node.value + '"', 'stringLiteral');
+        }
+        if (node.type === 'tuple') {
+            return (punct('[') +
+                node.elements
                     .map((x) => render(x))
-                    .join('</li>\n<li>' + punct('| ')) +
-                '</li></ul>');
+                    .filter((x) => !!x)
+                    .join(punct(', ')) +
+                punct(']'));
         }
-        else {
-            return node.types.map((x) => render(x)).join(punct(' | '));
+        if (node.type === 'typeOperator') {
+            return span(node.operator + ' ', 'keyword') + render(node.target);
         }
-    }
-    if (node.type === 'unknown') {
-        return '';
-    }
-    if (node.type === 'void') {
-        return span('void', 'keyword');
+        if (node.type === 'typeParameter') {
+            let result = renderPermalink(makePermalink(node));
+            if (node.constraint) {
+                result += span(' extends ', 'keyword');
+                result += render(node.constraint);
+            }
+            return result;
+        }
+        if (node.type === 'union') {
+            if (style === 'block' && !everyStringLiteral(node.types)) {
+                return ('<ul class="type-block"><li>' +
+                    punct('| ') +
+                    node.types
+                        .map((x) => render(x))
+                        .join('</li>\n<li>' + punct('| ')) +
+                    '</li></ul>');
+            }
+            else {
+                return node.types.map((x) => render(x)).join(punct(' | '));
+            }
+        }
+        if (node.type === 'unknown') {
+            return '';
+        }
+        if (node.type === 'void') {
+            return span('void', 'keyword');
+        }
     }
     let result = '';
     switch (node.kind) {
@@ -1332,7 +1346,7 @@ function render(node, style = 'inline') {
         case 1:
         case 2:
         case 4:
-            console.assert('Unexpected node kind ', node.kind);
+            console.assert('Unexpected node kind ', Number(node.kind).toString());
             break;
         case 16:
             result = `<dt id="${encodeURIComponent(makePermalink(node).anchor)}">`;
@@ -1356,11 +1370,11 @@ function render(node, style = 'inline') {
                 if (hasFlag(node, 'isOptional')) {
                     result += span('?', 'modifier');
                 }
-                if (node.type && node.type.type === 'unknown') {
+                if (((_a = node.type) === null || _a === void 0 ? void 0 : _a.type) === 'unknown') {
                     result += punct(' = ');
                     result += node.type.name || '';
                 }
-                if (node.type && node.type.type !== 'unknown') {
+                if (((_b = node.type) === null || _b === void 0 ? void 0 : _b.type) !== 'unknown') {
                     result += punct(': ');
                     result += render(node.type);
                 }
@@ -1454,7 +1468,9 @@ function render(node, style = 'inline') {
                     }
                     if (node.type) {
                         result += '\n<dt>\n';
-                        result += '<strong>→ </strong>' + render(node.type);
+                        result +=
+                            '<strong>→ </strong>' +
+                                render(node.type);
                         result += '\n</dt><dd>\n';
                         if (node.comment && node.comment.returns) {
                             result += renderNotices(node, node.comment.returns);
@@ -1577,8 +1593,9 @@ function render(node, style = 'inline') {
                         result += punct(' = ');
                     }
                 }
-                if (def && node.type === 'reference') {
-                    result += renderPermalink(makePermalink(node.type)) + def;
+                if (def && node.type.type === 'reference') {
+                    result +=
+                        renderPermalink(makePermalink(node.type)) + def;
                 }
                 else if (def) {
                     result += def;
@@ -1593,7 +1610,7 @@ function render(node, style = 'inline') {
     }
     return result;
 }
-let gNodes = {};
+let gNodes;
 function getReflectionsFromFile(src) {
     let result = {};
     const app = new TypeDoc.Application();
@@ -1614,7 +1631,7 @@ function getReflectionsFromFile(src) {
     const convertResult = app.converter.convert(src);
     if (convertResult.errors && convertResult.errors.length) {
         console.error(convertResult.errors.map((x) => x.messageText).join('\n'));
-        return {};
+        return undefined;
     }
     if (convertResult.project) {
         result = app.serializer.projectToObject(convertResult.project);
@@ -1628,32 +1645,19 @@ function applyTemplate(src, substitutions) {
     return src;
 }
 function grok(src, options) {
-    var _a, _b;
+    var _a, _b, _c, _d;
     try {
         gNodes = getReflectionsFromFile(src);
-        let sdkName = options.sdkName;
-        const packages = (_a = gNodes.groups) === null || _a === void 0 ? void 0 : _a.filter((x) => (x.kind & 3) !== 0);
-        const mainPackage = packages &&
-            packages[0] &&
-            packages[0].children[0] &&
-            getReflectionByID(packages[0].children[0]);
-        if (!sdkName && mainPackage)
-            sdkName = mainPackage.name;
-        if (sdkName) {
-            if (sdkName.startsWith('"') && sdkName.endsWith('"'))
-                sdkName = sdkName.substring(1, sdkName.length - 2);
-            if (sdkName.endsWith('.d'))
-                sdkName = sdkName.substring(2);
-        }
-        const packageName = sdkName || gNodes.name || '';
+        let sdkName = (_a = options.sdkName) !== null && _a !== void 0 ? _a : '';
+        const packageName = (_c = (_b = options.sdkName) !== null && _b !== void 0 ? _b : gNodes.name) !== null && _c !== void 0 ? _c : '';
         const content = render(gNodes, 'section');
         if (content) {
             const document = applyTemplate(options.documentTemplate, {
                 packageName: escapeYAMLString(packageName),
-                sdkName: escapeYAMLString(trimNewline(sdkName || '')),
+                sdkName: escapeYAMLString(trimNewline(sdkName)),
                 content,
             });
-            return { [(_b = options === null || options === void 0 ? void 0 : options.outFile) !== null && _b !== void 0 ? _b : 'index.html']: document };
+            return { [(_d = options === null || options === void 0 ? void 0 : options.outFile) !== null && _d !== void 0 ? _d : 'index.html']: document };
         }
     }
     catch (err) {

@@ -35,9 +35,6 @@ interface Options {
 
     sdkName?: string;
 }
-
-type Reflection = { [key: string]: any };
-
 type Tag =
     | 'alpha'
     | 'beta'
@@ -57,6 +54,101 @@ type Tag =
     | 'sealed'
     | 'virtual';
 
+type Category = {
+    title: string;
+    children: Reflection[];
+};
+
+type Reflection = {
+    id: number;
+    name: string;
+    kind?:
+        | 0
+        | 1
+        | 2
+        | 4
+        | 8
+        | 16
+        | 32
+        | 64
+        | 128
+        | 256
+        | 512
+        | 1024
+        | 2048
+        | 4096
+        | 8192
+        | 16384
+        | 32768
+        | 65536
+        | 131072
+        | 262144
+        | 524288
+        | 1048576
+        | 2097152
+        | 4194304
+        | 8388608;
+    type:
+        | 'abstract'
+        | 'array'
+        | 'conditionals'
+        | 'index'
+        | 'indexedAccess'
+        | 'inferred'
+        | 'intrinsic'
+        | 'intersection'
+        | 'predicate'
+        | 'reference'
+        | 'reflection'
+        | 'stringLiteral'
+        | 'tuple'
+        | 'typeOperator'
+        | 'typeParameter'
+        | 'union'
+        | 'unknown'
+        | 'void'
+        | Reflection; // For kind = 32: Variable,
+    // 1024: Property, 4096: Call Signature, 16384: Constructor Signature
+    // 8192: Index Signature, 32768: Parameter, 131072: Type Parameter,
+    // 4194304: Type Alias
+    groups: Reflection[]; // For type = 'groups'
+    children?: Reflection[];
+    title?: string; // For groups
+    comment?: {
+        tags?: { tag: Tag; text?: string }[];
+        shortText?: string;
+        text?: string;
+        returns?: string;
+    };
+    flags?: {
+        isAbstract?: boolean;
+        isPrivate?: boolean;
+        isProtected?: boolean;
+        isPublic?: boolean;
+        isExternal?: boolean;
+        isStatic?: boolean;
+    };
+    categories?: { title: string; children: number[] }[];
+    signatures?: Reflection[];
+    getSignature?: Reflection; // For accessors
+    setSignature?: Reflection; // For accessors
+    elementType?: Reflection;
+    objectType?: Reflection;
+    indexType?: Reflection;
+    typeArguments?: Reflection[];
+    types?: Reflection[];
+    declaration?: Reflection;
+    operator?: string; // For type 'typeOperator'
+    target?: Reflection; // For type 'typeOperator'
+    constraint?: Reflection;
+    value?: string; // For type === 'stringLiteral'
+    elements?: Reflection[]; // For type === 'tuple'
+    defaultValue?: string; // For kind === 16 (Enum Member)
+    indexSignature?: Reflection[];
+    parameters?: Reflection[];
+    typeParameter?: Reflection[];
+};
+
 function span(
     value: string,
     className:
@@ -75,7 +167,7 @@ function span(
     return '<span class="' + className + '">' + value + '</span>';
 }
 
-function punct(value: string) {
+function punct(value: string): string {
     return '<span class="punct">' + value + '</span>';
 }
 
@@ -84,11 +176,11 @@ function punct(value: string) {
 // This function locates these references by traversing the JSON
 // data structure ('from')
 
-function getReflectionByID(id: number, root = gNodes) {
+function getReflectionByID(id: number, root = gNodes): Reflection {
     // A node with a given id can either be the actual node
     // or a **reference** to this node. Ignore references.
     if (root.type !== 'reference' && root.id === id) return root;
-    let result;
+    let result: Reflection;
     root.children &&
         root.children.some((x) => {
             result = getReflectionByID(id, x);
@@ -97,7 +189,7 @@ function getReflectionByID(id: number, root = gNodes) {
     return result;
 }
 
-function getReflectionsByName(name: string, root?) {
+function getReflectionsByName(name: string, root?: Reflection): Reflection[] {
     if (!root) root = gNodes;
     let result = [];
     if (root.name === name) result.push(root);
@@ -113,7 +205,11 @@ function getReflectionsByName(name: string, root?) {
  * While a node ID is unique, names might not be.
  * Return all the matching nodes.
  */
-function getReflectionByName(name: string, root?, kind?): Reflection {
+function getReflectionByName(
+    name: string,
+    root?: Reflection,
+    kind?: number | string
+): Reflection {
     let candidates = [];
     candidates = getReflectionsByName(name, root);
     if (candidates.length > 0) {
@@ -147,7 +243,7 @@ const NUMERIC_KIND = {
     type: 4194304,
 };
 
-function getNameSelector(segment: string) {
+function getNameSelector(segment: string): [string, string] {
     const m = segment.match(/^\(([^\:]+)(\:([^\)]+))?\)$/);
     if (m) {
         return [m[1], m[3]];
@@ -167,7 +263,7 @@ function getNameSelector(segment: string) {
  * {@link Foo.member}.
  */
 
-function getReflectionByLink(link: string, root?) {
+function getReflectionByLink(link: string, root?: Reflection): Reflection {
     const segments = link.split('.');
     if (segments.length === 1) {
         // No path: look at children, then siblings, then parent, then global
@@ -194,7 +290,7 @@ function getReflectionByLink(link: string, root?) {
  * result[0] is the node
  * result[1] is the parent, etc..
  */
-function getAncestors(node, root = gNodes) {
+function getAncestors(node: Reflection, root = gNodes): Reflection[] {
     if (!node) return null;
     if (node.id === root.id) return [root];
     if (root.children) {
@@ -208,7 +304,7 @@ function getAncestors(node, root = gNodes) {
     return null;
 }
 
-function getParent(node) {
+function getParent(node: Reflection): Reflection {
     let ancestors = getAncestors(node);
     if (ancestors) return ancestors[1];
     return null;
@@ -217,7 +313,7 @@ function getParent(node) {
 /**
  * Return all the children matching the specified list of IDs
  */
-function getChildrenByID(node: Reflection, children: number[]): Reflection {
+function getChildrenByID(node: Reflection, children: number[]): Reflection[] {
     return children.map(
         (x) => node.children.filter((child) => child.id === x)[0]
     );
@@ -234,8 +330,8 @@ function everyStringLiteral(nodes: Reflection[]): boolean {
     return nodes.every((x) => x.type === 'stringLiteral');
 }
 
-function sortOtherCategoryAtEnd(categories: Reflection[]): Reflection[] {
-    return categories.sort((a: Reflection, b: Reflection): number => {
+function sortOtherCategoryAtEnd(categories: Category[]): Category[] {
+    return categories.sort((a, b): number => {
         if (a.title === b.title) return 0;
         if (a.title === 'Other') return 1;
         if (b.title === 'Other') return -1;
@@ -275,19 +371,27 @@ function sortGroups(groups) {
  * Categories are grouping of related items, for example
  * all methods about a particular topic.
  *
- * In the source file, categories are indicated with a
+ * In the source files, categories are indicated with a
  * @category tag (a tsdoc standard)
  */
 
-function getCategories(node, kind: number) {
+function getCategories(node: Reflection, kind: number): Category[] {
     let result = [];
-    let children = node.groups && node.groups.filter((x) => x.kind === kind);
+    let children =
+        node.groups && node.groups.filter((x) => (x.kind & kind) !== 0);
     if (!children || children.length !== 1) {
-        // No groups. Are there topics?
+        // No groups. Are there categories?
         if (node.categories) {
-            return sortOtherCategoryAtEnd(node.categories);
+            return sortOtherCategoryAtEnd(
+                (node.categories as unknown) as Category[]
+            );
         }
-        return node.children.filter((x) => x.kind === kind);
+        return [
+            {
+                title: '',
+                children: node.children.filter((x) => (x.kind & kind) !== 0),
+            },
+        ];
     }
     if (children[0].categories) {
         result = children[0].categories.map((category) => {
@@ -299,10 +403,14 @@ function getCategories(node, kind: number) {
         result = sortOtherCategoryAtEnd(result);
     } else {
         // No categories, return all the children of the specified kind
+        console.assert(typeof children[0].children[0] === 'number');
         result = [
             {
                 title: '',
-                children: getChildrenByID(node, children[0].children),
+                children: getChildrenByID(
+                    node,
+                    (children[0].children as unknown) as number[]
+                ),
             },
         ];
     }
@@ -334,7 +442,7 @@ function getCategories(node, kind: number) {
 // - title: a string to be displayed as the name of the URL.
 
 function makePermalink(
-    node
+    node: Reflection
 ): {
     anchor: string;
     title: string;
@@ -463,7 +571,12 @@ function renderPermalinkAnchor(permalink) {
  * If there are 1 or less, no table is generated (don't need
  * a table with 1 item in it)
  */
-function renderIndex(node, title?, categories?, options?) {
+function renderIndex(
+    node: Reflection,
+    title?: string,
+    categories?: Category[],
+    options?: { symbolSuffix?: string }
+) {
     if (!categories || categories.length === 0) return '';
     let result = '';
     if (title) {
@@ -491,10 +604,15 @@ function renderIndex(node, title?, categories?, options?) {
                 r += category.children
                     .map((x) => {
                         // Sometimes the children can be ID (for 'Types') for example
-                        if (typeof x === 'number') x = getReflectionByID(x);
+                        let n: Reflection;
+                        if (typeof x === 'number') {
+                            n = getReflectionByID(x);
+                        } else {
+                            n = x;
+                        }
                         return renderPermalink(
-                            makePermalink(x),
-                            getName(x) + options.symbolSuffix
+                            makePermalink(n),
+                            getName(n) + options.symbolSuffix
                         );
                     })
                     .filter((x) => !!x)
@@ -1078,7 +1196,7 @@ function renderComment(node: Reflection, style: string): string {
     if (node.comment.text) {
         result += renderNotices(node, node.comment.text) + newLine;
     }
-    const remarks = getTag(node.comment, 'remarks');
+    const remarks = getTag(node, 'remarks');
     if (remarks) {
         result += renderNotices(node, remarks) + newLine;
     }
@@ -1416,7 +1534,7 @@ function renderClassCard(node) {
                                 renderComment(signature, 'card');
                             return sigResult;
                         })
-                        .join('</dd><dt><cade>') + '</dd>';
+                        .join('</dd><dt><code>') + '</dd>';
             } else if (x.kind === 1024) {
                 // Property
                 r += '<strong>' + x.name + '</strong>';
@@ -1610,7 +1728,7 @@ function renderTypeAliasCard(node) {
  * Groups have a 'children' property which is an array of ID
  *  referring to the items
  */
-function renderGroup(node, group) {
+function renderGroup(node: Reflection, group: Reflection): string {
     const topics = getCategories(node, group.kind);
     // If there are any children, there should always be at least
     // one "Other" topic
@@ -1678,7 +1796,7 @@ function renderGroups(node) {
  * section. This allows the most info to be displayed, including comments about
  * this item.
  */
-function render(node, style = 'inline') {
+function render(node: Reflection | number, style = 'inline'): string {
     // See https://github.com/TypeStrong/typedoc/blob/master/src/lib/models/reflections/abstract.ts
     // for a list of the possible reflection kinds
 
@@ -1724,9 +1842,10 @@ function render(node, style = 'inline') {
 
     let parent = getParent(node);
 
-    if (node.type === 'abstract') {
-        // @todo
-        /*
+    if (typeof node.kind === 'undefined') {
+        if (node.type === 'abstract') {
+            // @todo
+            /*
 abstract class Animal {
     abstract makeSound(): void;
     move(): void {
@@ -1734,179 +1853,194 @@ abstract class Animal {
     }
 }
 */ console.error(
-            'Unexpected node type ',
-            node.type
-        );
-    }
-
-    if (node.type === 'array') {
-        // @check (number | string)[]
-        return render(node.elementType, 'inline') + punct('[]');
-    }
-
-    if (node.type === 'conditionals') {
-        // @todo
-        // 'T extends U ? X : Y'
-        console.error('Unexpected node type ', node.type);
-    }
-
-    if (node.type === 'index') {
-        console.error('Unexpected node type ', node.type);
-    }
-
-    if (node.type === 'indexedAccess') {
-        // e.g. 'T[U]'
-        return (
-            render(node.objectType) +
-            punct('[') +
-            render(node.indexType) +
-            punct(']')
-        );
-    }
-
-    if (node.type === 'inferred') {
-        console.error('Unexpected node type ', node.type);
-    }
-
-    if (node.type === 'intersection') {
-        if (style === 'block') {
-            return (
-                '<ul class="type-block"><li>' +
-                node.types
-                    .map((x) => render(x))
-                    .filter((x) => !!x)
-                    .join(punct(' &amp; ') + '</li>\n<li>') +
-                '</li></ul>'
+                'Unexpected node type ',
+                node.type
             );
         }
-        return node.types
-            .map((x) => render(x))
-            .filter((x) => !!x)
-            .join(punct(' &amp; '));
-    }
 
-    if (node.type === 'intrinsic') {
-        // E.g. "number", "string", etc...
-        return span(node.name, 'keyword');
-    }
-
-    if (node.type === 'predicate') {
-        console.error('Unexpected node type ', node.type);
-    }
-
-    if (node.type === 'reference') {
-        // E.g. the name of another type
-        // For example, T in 'f(a:T)'
-
-        let typeArguments = '';
-        if (node.typeArguments) {
-            typeArguments =
-                punct('&lt;') +
-                node.typeArguments.map((x) => render(x)).join(punct(', ')) +
-                punct('&gt;');
+        if (node.type === 'array') {
+            // @check (number | string)[]
+            return render(node.elementType, 'inline') + punct('[]');
         }
 
-        // Enum, Class, Interface, TypeAlias
-        let candidate;
-        if (typeof node.id !== 'undefined') {
-            candidate = getReflectionByID(node.id);
+        if (node.type === 'conditionals') {
+            // @todo
+            // 'T extends U ? X : Y'
+            console.error('Unexpected node type ', node.type);
         }
 
-        if (!candidate) {
-            // Find by name in the parent space
+        if (node.type === 'index') {
+            console.error('Unexpected node type ', node.type);
+        }
+
+        if (node.type === 'indexedAccess') {
+            // e.g. 'T[U]'
+            return (
+                render(node.objectType) +
+                punct('[') +
+                render(node.indexType) +
+                punct(']')
+            );
+        }
+
+        if (node.type === 'inferred') {
+            console.error('Unexpected node type ', node.type);
+        }
+
+        if (node.type === 'intersection') {
+            if (style === 'block') {
+                return (
+                    '<ul class="type-block"><li>' +
+                    node.types
+                        .map((x) => render(x))
+                        .filter((x) => !!x)
+                        .join(punct(' &amp; ') + '</li>\n<li>') +
+                    '</li></ul>'
+                );
+            }
+            return node.types
+                .map((x) => render(x))
+                .filter((x) => !!x)
+                .join(punct(' &amp; '));
+        }
+
+        if (node.type === 'intrinsic') {
+            // E.g. "number", "string", etc...
+            return span(node.name, 'keyword');
+        }
+
+        if (node.type === 'predicate') {
+            console.error('Unexpected node type ', node.type);
+        }
+
+        if (node.type === 'reference') {
+            // E.g. the name of another type
+            // For example, T in 'f(a:T)'
+
+            let typeArguments = '';
+            if (node.typeArguments) {
+                typeArguments =
+                    punct('&lt;') +
+                    node.typeArguments.map((x) => render(x)).join(punct(', ')) +
+                    punct('&gt;');
+            }
+
+            // Enum, Class, Interface, TypeAlias
+            let candidate;
+            if (typeof node.id !== 'undefined') {
+                candidate = getReflectionByID(node.id);
+            }
+
+            if (!candidate) {
+                // Find by name in the parent space
+                candidate = getReflectionByName(
+                    node.name,
+                    parent,
+                    4 | 128 | 256 | 4194304
+                );
+            }
+            if (candidate) {
+                const permalink = makePermalink(candidate);
+                if (candidate.kind === 16) {
+                    // For enum members, include the parent (the Enum) name
+                    permalink.title = parent.name + '.' + node.name;
+                } else {
+                    permalink.title = node.name; // Don't render(), it's a reference, we just need its name
+                }
+                return renderPermalink(permalink) + typeArguments;
+            }
+
+            // Find by name in the global space
             candidate = getReflectionByName(
                 node.name,
-                parent,
+                undefined,
                 4 | 128 | 256 | 4194304
             );
-        }
-        if (candidate) {
-            const permalink = makePermalink(candidate);
-            if (candidate.kind === 16) {
-                // For enum members, include the parent (the Enum) name
-                permalink.title = parent.name + '.' + node.name;
-            } else {
-                permalink.title = node.name; // Don't render(), it's a reference, we just need its name
+            if (candidate) {
+                return (
+                    renderPermalink(makePermalink(candidate), node.name) +
+                    typeArguments
+                );
             }
-            return renderPermalink(permalink) + typeArguments;
-        }
+            if (candidate) {
+                return node.name + typeArguments; // Don't render, it's a reference, we just need its name
+            }
 
-        // Find by name in the global space
-        candidate = getReflectionByName(
-            node.name,
-            undefined,
-            4 | 128 | 256 | 4194304
-        );
-        if (candidate) {
-            return (
-                renderPermalink(makePermalink(candidate), node.name) +
-                typeArguments
-            );
-        }
-        if (candidate) {
-            return node.name + typeArguments; // Don't render, it's a reference, we just need its name
-        }
+            if (
+                [
+                    'Object',
+                    'Function',
+                    'Boolean',
+                    'Symbol',
+                    'String',
+                    'RegExp',
+                    'Object',
+                    'Number',
+                    'BigInt',
+                    'Math',
+                    'Date',
+                    'Infinity',
+                    'NaN',
+                    'globalThis',
+                    'Error',
+                    'AggregateError',
+                    'InternalError',
+                    'RangeError',
+                    'ReferenceError',
+                    'SyntaxError',
+                    'TypeError',
+                    'URIError',
+                    'Array',
+                    'Int8Array',
+                    'Uint8Array',
+                    'Uint8Array',
+                    'Uint8ClampedArray',
+                    'Int16Array',
+                    'Uint16Array',
+                    'Int32Array',
+                    'Uint32Array',
+                    'Float32Array',
+                    'Float64Array',
+                    'BigInt64Array',
+                    'BigUint64Array',
+                    'Map',
+                    'Set',
+                    'WeakMap',
+                    'WeakSet',
+                    'ArrayBuffer',
+                    'SharedArrayBuffer',
+                    'Atomics',
+                    'DataView',
+                    'JSON',
+                    'Promise',
+                    'Generator',
+                    'GeneratorFunction',
+                    'AsyncFunction',
+                    'Iterator',
+                    'AsyncIterator',
+                    'Reflect',
+                    'Proxy',
+                    'Intl',
+                    'WebAssembly',
+                ].includes(node.name)
+            ) {
+                return (
+                    '<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/' +
+                    node.name +
+                    '" class="externallink">' +
+                    node.name +
+                    '<svg><use xlink:href="#external-link"></use></svg>' +
+                    '</a>' +
+                    typeArguments
+                );
+            }
 
-        if (
-            [
-                'Object',
-                'Function',
-                'Boolean',
-                'Symbol',
-                'String',
-                'RegExp',
-                'Object',
-                'Number',
-                'BigInt',
-                'Math',
-                'Date',
-                'Infinity',
-                'NaN',
-                'globalThis',
-                'Error',
-                'AggregateError',
-                'InternalError',
-                'RangeError',
-                'ReferenceError',
-                'SyntaxError',
-                'TypeError',
-                'URIError',
-                'Array',
-                'Int8Array',
-                'Uint8Array',
-                'Uint8Array',
-                'Uint8ClampedArray',
-                'Int16Array',
-                'Uint16Array',
-                'Int32Array',
-                'Uint32Array',
-                'Float32Array',
-                'Float64Array',
-                'BigInt64Array',
-                'BigUint64Array',
-                'Map',
-                'Set',
-                'WeakMap',
-                'WeakSet',
-                'ArrayBuffer',
-                'SharedArrayBuffer',
-                'Atomics',
-                'DataView',
-                'JSON',
-                'Promise',
-                'Generator',
-                'GeneratorFunction',
-                'AsyncFunction',
-                'Iterator',
-                'AsyncIterator',
-                'Reflect',
-                'Proxy',
-                'Intl',
-                'WebAssembly',
-            ].includes(node.name)
-        ) {
+            // We could not resolve this reference.
+            // This can happen for globally defined types, for example
+            // 'KeyboardEvent'
+            // In that case, create a link to reference documentation
             return (
-                '<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/' +
+                '<a href="https://developer.mozilla.org/Web/API/' +
                 node.name +
                 '" class="externallink">' +
                 node.name +
@@ -1916,81 +2050,67 @@ abstract class Animal {
             );
         }
 
-        // We could not resolve this reference.
-        // This can happen for globally defined types, for example
-        // 'KeyboardEvent'
-        // In that case, create a link to reference documentation
-        return (
-            '<a href="https://developer.mozilla.org/Web/API/' +
-            node.name +
-            '" class="externallink">' +
-            node.name +
-            '<svg><use xlink:href="#external-link"></use></svg>' +
-            '</a>' +
-            typeArguments
-        );
-    }
-
-    if (node.type === 'reflection') {
-        return render(node.declaration, style);
-    }
-
-    if (node.type === 'stringLiteral') {
-        return span('"' + node.value + '"', 'stringLiteral');
-    }
-
-    if (node.type === 'tuple') {
-        return (
-            punct('[') +
-            node.elements
-                .map((x) => render(x))
-                .filter((x) => !!x)
-                .join(punct(', ')) +
-            punct(']')
-        );
-    }
-
-    if (node.type === 'typeOperator') {
-        // e.g.. 'typeof'
-        return span(node.operator + ' ', 'keyword') + render(node.target);
-    }
-
-    if (node.type === 'typeParameter') {
-        // The name of a referenced type, e.g.
-        // 'U' in 'T[U]'
-        let result = renderPermalink(makePermalink(node));
-        if (node.constraint) {
-            result += span(' extends ', 'keyword');
-            result += render(node.constraint);
+        if (node.type === 'reflection') {
+            return render(node.declaration, style);
         }
-        return result;
-    }
 
-    if (node.type === 'union') {
-        // E.g. "a | b"
-        if (style === 'block' && !everyStringLiteral(node.types)) {
+        if (node.type === 'stringLiteral') {
+            return span('"' + node.value + '"', 'stringLiteral');
+        }
+
+        if (node.type === 'tuple') {
             return (
-                '<ul class="type-block"><li>' +
-                punct('| ') +
-                node.types
+                punct('[') +
+                node.elements
                     .map((x) => render(x))
-                    .join('</li>\n<li>' + punct('| ')) +
-                '</li></ul>'
+                    .filter((x) => !!x)
+                    .join(punct(', ')) +
+                punct(']')
             );
-        } else {
-            return node.types.map((x) => render(x)).join(punct(' | '));
         }
-    }
 
-    if (node.type === 'unknown') {
-        // This is used when the type is... not known. For example in
-        // `export const PI = 3.1415`, the type is 'unknown' (which has a 'name'
-        // value of "3.1415"
-        return '';
-    }
+        if (node.type === 'typeOperator') {
+            // e.g.. 'typeof'
+            return span(node.operator + ' ', 'keyword') + render(node.target);
+        }
 
-    if (node.type === 'void') {
-        return span('void', 'keyword');
+        if (node.type === 'typeParameter') {
+            // The name of a referenced type, e.g.
+            // 'U' in 'T[U]'
+            let result = renderPermalink(makePermalink(node));
+            if (node.constraint) {
+                result += span(' extends ', 'keyword');
+                result += render(node.constraint);
+            }
+            return result;
+        }
+
+        if (node.type === 'union') {
+            // E.g. "a | b"
+            if (style === 'block' && !everyStringLiteral(node.types)) {
+                return (
+                    '<ul class="type-block"><li>' +
+                    punct('| ') +
+                    node.types
+                        .map((x) => render(x))
+                        .join('</li>\n<li>' + punct('| ')) +
+                    '</li></ul>'
+                );
+            } else {
+                return node.types.map((x) => render(x)).join(punct(' | '));
+            }
+        }
+
+        if (node.type === 'unknown') {
+            // This is used when the type is... not known. For example in
+            // `export const PI = 3.1415`, the type is 'unknown' (which has a 'name'
+            // value of "3.1415"
+            return '';
+        }
+
+        if (node.type === 'void') {
+            return span('void', 'keyword');
+        }
     }
 
     let result = '';
@@ -2001,7 +2121,10 @@ abstract class Animal {
         case 2: // Namespace
         case 4: // Enum
             // We always do it by groups
-            console.assert('Unexpected node kind ', node.kind);
+            console.assert(
+                'Unexpected node kind ',
+                Number(node.kind).toString()
+            );
             break;
 
         case 16: // Enum Member
@@ -2029,13 +2152,13 @@ abstract class Animal {
                 if (hasFlag(node, 'isOptional')) {
                     result += span('?', 'modifier');
                 }
-                if (node.type && node.type.type === 'unknown') {
+                if ((node.type as Reflection)?.type === 'unknown') {
                     result += punct(' = ');
-                    result += node.type.name || '';
+                    result += (node.type as Reflection).name || '';
                 }
-                if (node.type && node.type.type !== 'unknown') {
+                if ((node.type as Reflection)?.type !== 'unknown') {
                     result += punct(': ');
-                    result += render(node.type);
+                    result += render(node.type as Reflection);
                 }
             }
             break;
@@ -2090,7 +2213,7 @@ abstract class Animal {
                     (parent ? parent.name + '.' : '') +
                     node.name +
                     punct(': ') +
-                    render(node.type, style);
+                    render(node.type as Reflection, style);
             }
             break;
 
@@ -2114,7 +2237,7 @@ abstract class Animal {
                         .join(punct(', '));
                 }
                 result += punct(')');
-                result += punct(': ') + render(node.type);
+                result += punct(': ') + render(node.type as Reflection);
             } else if (style === 'block') {
                 // Display info for each param:
                 // - a: b blah blah
@@ -2130,7 +2253,10 @@ abstract class Animal {
                                         '<strong><var>' +
                                         param.name +
                                         '</var></strong>';
-                                    const typeDef = render(param.type, 'block');
+                                    const typeDef = render(
+                                        param.type as Reflection,
+                                        'block'
+                                    );
                                     if (typeDef) {
                                         r += punct(': ') + typeDef;
                                     }
@@ -2143,7 +2269,9 @@ abstract class Animal {
                     }
                     if (node.type) {
                         result += '\n<dt>\n';
-                        result += '<strong>→ </strong>' + render(node.type);
+                        result +=
+                            '<strong>→ </strong>' +
+                            render(node.type as Reflection);
                         result += '\n</dt><dd>\n';
                         if (node.comment && node.comment.returns) {
                             result += renderNotices(node, node.comment.returns);
@@ -2163,7 +2291,7 @@ abstract class Animal {
                 punct('[') +
                 node.parameters.map((x) => render(x)).join(punct(', ')) +
                 punct(']');
-            result += punct(': ') + render(node.type);
+            result += punct(': ') + render(node.type as Reflection);
             break;
 
         // case 16384: // Constructor signature
@@ -2180,7 +2308,7 @@ abstract class Animal {
             if (hasFlag(node, 'isOptional')) {
                 result += span('?', 'modifier');
             }
-            result += punct(': ') + render(node.type);
+            result += punct(': ') + render(node.type as Reflection);
             break;
 
         case 65536: // Type literal
@@ -2241,7 +2369,7 @@ abstract class Animal {
             result += node.name;
             if (node.type) {
                 result += span(' extends ', 'keyword');
-                result += render(node.type);
+                result += render(node.type as Reflection);
             }
             break;
         case 524288: // Get signature
@@ -2266,7 +2394,7 @@ abstract class Animal {
             if (style === 'card' || style === 'section') {
                 result = renderTypeAliasCard(node);
             } else {
-                let def = render(node.type, style);
+                let def = render(node.type as Reflection, style);
                 result = '';
                 if (node.typeParameter) {
                     result += punct('&lt;');
@@ -2278,8 +2406,11 @@ abstract class Animal {
                         result += punct(' = ');
                     }
                 }
-                if (def && node.type === 'reference') {
-                    result += renderPermalink(makePermalink(node.type)) + def;
+                if (def && (node.type as Reflection).type === 'reference') {
+                    result +=
+                        renderPermalink(
+                            makePermalink(node.type as Reflection)
+                        ) + def;
                 } else if (def) {
                     result += def;
                 }
@@ -2297,7 +2428,7 @@ abstract class Animal {
     return result;
 }
 
-let gNodes: Reflection = {};
+let gNodes: Reflection;
 
 function getReflectionsFromFile(src: string[]): Reflection {
     let result = {};
@@ -2340,7 +2471,7 @@ function getReflectionsFromFile(src: string[]): Reflection {
         console.error(
             convertResult.errors.map((x) => x.messageText).join('\n')
         );
-        return {};
+        return undefined;
         // }
     }
 
@@ -2376,28 +2507,14 @@ export function grok(
     try {
         gNodes = getReflectionsFromFile(src);
 
-        let sdkName = options.sdkName;
-
-        const packages = gNodes.groups?.filter((x) => (x.kind & 3) !== 0);
-        // packages = modules or namespaces
-        const mainPackage =
-            packages &&
-            packages[0] &&
-            packages[0].children[0] &&
-            getReflectionByID(packages[0].children[0]);
-        if (!sdkName && mainPackage) sdkName = mainPackage.name;
-        if (sdkName) {
-            if (sdkName.startsWith('"') && sdkName.endsWith('"'))
-                sdkName = sdkName.substring(1, sdkName.length - 2);
-            if (sdkName.endsWith('.d')) sdkName = sdkName.substring(2);
-        }
-        const packageName = sdkName || gNodes.name || '';
+        let sdkName = options.sdkName ?? '';
+        const packageName = options.sdkName ?? gNodes.name ?? '';
 
         const content = render(gNodes, 'section');
         if (content) {
             const document = applyTemplate(options.documentTemplate, {
                 packageName: escapeYAMLString(packageName),
-                sdkName: escapeYAMLString(trimNewline(sdkName || '')),
+                sdkName: escapeYAMLString(trimNewline(sdkName)),
                 content,
             });
             return { [options?.outFile ?? 'index.html']: document };
