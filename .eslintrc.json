@@ -1,0 +1,127 @@
+{
+    "env": {
+        "browser": false,
+        // "commonjs": true,
+        "es6": true,
+        "node": true, // For jest, config files, etc...
+        "amd": true,
+        "mocha": true
+    },
+
+    "parser": "@typescript-eslint/parser",
+
+    "parserOptions": {
+        // Configure the parser with the tsconfig file in the root project
+        "project": "./tsconfig.json"
+
+        // "ecmaFeatures": { "jsx": false }, // default
+        // "ecmaVersion": 2020,
+        // "sourceType": "module" // Allow the use of import
+    },
+
+    "extends": [
+        // Uses the recommended rules for Typescript
+        "plugin:@typescript-eslint/recommended",
+        "prettier/@typescript-eslint", // Uses eslint-config-prettier to disable ESLint rules from @typescript-eslint/eslint-plugin that would conflict with prettier
+        // Disable rules that conflict with prettier
+        // See https://prettier.io/docs/en/integrating-with-linters.html
+        "plugin:prettier/recommended"
+    ],
+    // See http://eslint.org/docs/rules/
+
+    "rules": {
+        /// Temporary lenient rules until more complete conversion to
+        /// Typescript is completed. @revisit
+        "@typescript-eslint/explicit-function-return-type": "off",
+        "@typescript-eslint/no-unnecessary-type-arguments": "warn",
+        "@typescript-eslint/no-untyped-public-signature": "warn",
+
+        "@typescript-eslint/array-type": ["warn", { "default": "array" }],
+
+        "@typescript-eslint/no-explicit-any": "off",
+
+        "prettier/prettier": "error",
+
+        // note you must disable the base rule as it can report incorrect errors
+        "indent": "off",
+        "@typescript-eslint/prefer-optional-chain": "warn",
+        "@typescript-eslint/prefer-nullish-coalescing": "warn",
+
+        "@typescript-eslint/generic-type-naming": ["warn", "^[A-Z][a-zA-Z]*$"],
+        "@typescript-eslint/no-non-null-assertion": "off",
+        "@typescript-eslint/no-unused-vars": [
+            "error",
+            {
+                "argsIgnorePattern": "^_"
+            }
+        ],
+        "@typescript-eslint/no-use-before-define": [
+            "error",
+            {
+                "functions": false,
+                "classes": false,
+                "variables": false,
+                "typedefs": false
+            }
+        ],
+        "@typescript-eslint/no-this-alias": [
+            "error",
+            {
+                "allowedNames": ["self", "that"] // Allow `const self = this`; `[]` by default
+            }
+        ],
+        "@typescript-eslint/no-for-in-array": "error",
+
+        "@typescript-eslint/no-var-requires": "off",
+
+        // Note:
+        // "off" or 0 - turn the rule off
+        // "warn" or 1 - turn the rule on as a warning (doesn’t affect exit code)
+        // "error" or 2 - turn the rule on as an error (exit code is 1 when triggered)
+        "no-const-assign": "warn",
+        "no-this-before-super": "warn",
+        // "no-undef": "warn",
+        "no-unreachable": "warn",
+        "no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+        "constructor-super": "warn",
+
+        "block-scoped-var": "error",
+
+        "array-bracket-spacing": ["error", "never"],
+        "block-spacing": ["error", "always"],
+        "brace-style": ["warn", "1tbs", { "allowSingleLine": true }],
+        "prefer-const": "warn",
+
+        "valid-typeof": "error",
+        "consistent-return": "error",
+        "curly": ["warn", "multi-line"],
+        "eqeqeq": ["error", "smart"],
+        "guard-for-in": "warn",
+        // "max-len": "warn",
+        "new-cap": "warn",
+        "no-bitwise": "off",
+        "no-console": "off",
+        "no-dupe-class-members": "off", // Support TypeScritp polymorphism
+        "no-else-return": "warn",
+        "no-eval": "error",
+        "no-fallthrough": "error",
+        "no-invalid-this": "warn",
+        "no-lone-blocks": "warn",
+        "no-return-assign": ["warn", "always"],
+        "no-redeclare": "off",
+        "no-self-compare": "error",
+        "no-sequences": "warn",
+        "no-unneeded-ternary": "warn",
+        "no-unused-expressions": "warn",
+        "no-useless-call": "warn",
+        "no-var": "error",
+        "no-with": "error",
+        // "vars-on-top": "warn",
+        "no-delete-var": "warn",
+        "no-mixed-spaces-and-tabs": ["warn", "smart-tabs"],
+        "require-jsdoc": "off",
+        "space-infix-ops": ["error", { "int32Hint": false }],
+
+        "no-trailing-spaces": [1, { "skipBlankLines": true }]
+    }
+}

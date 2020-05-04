@@ -49,9 +49,10 @@ function outputResult(
 
 function build(argv): void {
     try {
-        let options = {
+        const options = {
             sdkName: 'module',
             verbose: false,
+            tutorialPath: '',
             documentTemplate: `<!doctype html>
 <html class="no-js" lang="">
 
@@ -324,28 +325,30 @@ function buildOptions(yargs): void {
         });
 }
 
-require('yargs')
-    .usage('Usage: $0 file(s) [options]')
-    .example(
-        '$0 ./src/index.d.ts -o ./build/index.html',
-        'Generate a HTML documentation page from a TypeScript declaration file'
-    )
-    .command(
-        ['* <paths..>', 'build <paths..>'],
-        'Build documentation',
-        buildOptions,
-        build
-    )
-    .command(
-        'help',
-        'Show help',
-        () => {
-            return;
-        },
-        (yargs) => yargs.help()
-    )
+console.log(
+    require('yargs')
+        .usage('Usage: $0 file(s) [options]')
+        .example(
+            '$0 ./src/index.d.ts -o ./build/index.html',
+            'Generate a HTML documentation page from a TypeScript declaration file'
+        )
+        .command(
+            ['* <paths..>', 'build <paths..>'],
+            'Build documentation',
+            buildOptions,
+            build
+        )
+        .command(
+            'help',
+            'Show help',
+            () => {
+                return;
+            },
+            (yargs) => yargs.help()
+        )
 
-    .help('h')
-    .alias('h', 'help')
-    .epilog('For more information, see https://github.com/ui-js/grok')
-    .strict(true).argv;
+        .help('h')
+        .alias('h', 'help')
+        .epilog('For more information, see https://github.com/ui-js/grok')
+        .strict(true).argv
+);

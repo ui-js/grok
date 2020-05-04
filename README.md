@@ -32,6 +32,10 @@ Configuration can be specified:
 The configuration can include the following keys:
 
 -   `sdkName` the name of the SDK being documented
+-   `tutorialPath` Prefix added to the value of a `{@tutorial}` tag to determine
+    the URL to redirected to.
+    For example, `{@tutorial readme.html}` with `tutorialPath = 'https://example.com/docs'`
+    will redirect to 'https://example.com/docs/readme.html'
 -   `documentTemplate` a string which will be used to build the output file, with the following substrings substituted:
     -   `{{content}}` HTML markup of the documentation (suitable for as the content of a `<body>` tag)
     -   `{{sdkName}}` the name of the SDK, as indicated above

@@ -63,8 +63,7 @@
         "grok": "./bin/grok-cli"
     },
     "scripts": {
-        "build": "bash ./scripts/build.sh dev",
-        "build:prod": "bash ./scripts/build.sh production",
+        "build": "bash ./scripts/build.sh",
         "grok": "node ./bin/grok",
         "clean": "bash ./scripts/clean.sh",
         "coverage": "bash ./scripts/test.sh coverage",

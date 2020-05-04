@@ -4,8 +4,8 @@ const TypeDoc = require('typedoc');
 const highlightJs = require('highlight.js'); // https://highlightjs.org/
 const path = require('path');
 
-const markdownIt = require('markdown-it');
-const markdown = new markdownIt({
+const MarkdownIt = require('markdown-it');
+const markdown = new MarkdownIt({
     // See https://markdown-it.github.io/markdown-it/
     html: true,
     typographer: true,
@@ -24,15 +24,22 @@ const markdown = new markdownIt({
 
 interface Options {
     outFile?: string;
+
+    /** If the tsc compiler encounters an error while parsing the declaration files,
+     * attempt to continue nonetheless
+     */
     ignoreErrors?: boolean;
     // verbose?: boolean;
 
     documentTemplate?: string;
 
-    /** If true, the documentation is output in separate files.
-     * Otherwise, it's combined in a single file
+    /**
+     * Prefix added to the value of a {@tutorial} tag to determine the
+     * URL to redirected to.
+     * For example, {@tutorial readme.html} with tutorialPath = 'https://example.com/docs'
+     * will redirect to 'https://example.com/docs/readme.html'
      */
-    // splitOutput?: boolean;
+    tutorialPath: string;
 
     sdkName?: string;
 }
@@ -255,12 +262,16 @@ function getReflectionByID(id: number, root = gNodes): Reflection {
     // or a **reference** to this node. Ignore references.
     if (root.type !== 'reference' && root.id === id) return root;
     let result: Reflection;
-    root.children &&
-        root.children.some((x) => {
+    if (
+        root.children?.some((x) => {
             result = getReflectionByID(id, x);
-            return result !== undefined;
-        });
-    return result;
+            return result !== null;
+        }) ??
+        false
+    ) {
+        return result;
+    }
+    return null;
 }
 
 function getReflectionsByName(name: string, root?: Reflection): Reflection[] {
@@ -369,7 +380,7 @@ function getAncestors(node: Reflection, root = gNodes): Reflection[] {
     if (node.id === root.id) return [root];
     if (root.children) {
         for (const child of root.children) {
-            let ancestors = getAncestors(node, child);
+            const ancestors = getAncestors(node, child);
             if (ancestors) {
                 return [...ancestors, root];
             }
@@ -379,7 +390,7 @@ function getAncestors(node: Reflection, root = gNodes): Reflection[] {
 }
 
 function getParent(node: Reflection): Reflection {
-    let ancestors = getAncestors(node);
+    const ancestors = getAncestors(node);
     if (ancestors) return ancestors[1];
     return null;
 }
@@ -451,7 +462,7 @@ function sortGroups(groups) {
 
 function getCategories(node: Reflection, kind: number): Category[] {
     let result = [];
-    let children =
+    const children =
         node.groups && node.groups.filter((x) => (x.kind & kind) !== 0);
     if (!children || children.length !== 1) {
         // No groups. Are there categories?
@@ -535,7 +546,7 @@ function makePermalink(node: Reflection): Permalink | null {
     let result;
     if (node.kind === 512) {
         // Special syntax for constructors
-        let grandparentPermalink = makePermalink(getParent(parent));
+        const grandparentPermalink = makePermalink(getParent(parent));
         if (grandparentPermalink) {
             result = {
                 anchor:
@@ -555,7 +566,7 @@ function makePermalink(node: Reflection): Permalink | null {
     } else {
         const qualifiedSymbol = getQualifiedSymbol(parent, node);
         const parentPermalink = makePermalink(parent);
-        let nodeName = getName(node);
+        const nodeName = getName(node);
         result = parentPermalink
             ? {
                   anchor:
@@ -686,14 +697,14 @@ function hasFlag(
     node: Reflection,
     flag: 'isProtected' | 'isOptional' | 'isStatic' | 'isAbstract' | 'isRest'
 ): boolean {
-    return node && node.flags && node.flags[flag];
+    return node?.flags?.[flag];
 }
 
 // A tag is a JSDOC notation, such as '@param' or '@example'
 // See https://typedoc.org/guides/doccomments/
 function getTag(node: Reflection, tag: Tag): string {
-    if (node && node.comment && node.comment.tags) {
-        let result = node.comment.tags.filter((x) => x.tag === tag);
+    if (node?.comment?.tags) {
+        const result = node.comment.tags.filter((x) => x.tag === tag);
         // It *could* happen, but we're not ready to deal with that...
         console.assert(result.length <= 1);
         if (result.length === 1) {
@@ -709,9 +720,7 @@ function getTag(node: Reflection, tag: Tag): string {
 
 function hasTag(node: Reflection, tag: Tag) {
     return (
-        node &&
-        node.comment &&
-        node.comment.tags &&
+        node?.comment?.tags &&
         node.comment.tags.filter((x) => x.tag === tag).length > 0
     );
 }
@@ -908,9 +917,8 @@ function getQualifiedSymbol(parent: Reflection, node: Reflection) {
         if (parent.children.length === 1) {
             // And there is a single module in this file
             return '';
-        } else {
-            return '("' + getModuleName(node) + '":module)';
         }
+        return '("' + getModuleName(node) + '":module)';
     }
     if (node.kind === 2) {
         // Namespace.
@@ -1052,6 +1060,14 @@ function resolveLink(node: Reflection, link: string): string {
         : result + '#' + linkSegments.join('.');
 }
 
+function getTutorial(path: string): string {
+    if (!gOptions.tutorialPath) return path;
+    if (!gOptions.tutorialPath.endsWith('/')) {
+        return gOptions.tutorialPath + '/' + path;
+    }
+    return gOptions.tutorialPath + path;
+}
+
 /**
  * Render the JSDOC links that may be included in comments.
  *
@@ -1063,11 +1079,11 @@ function resolveLink(node: Reflection, link: string): string {
 function renderLinkTags(node: Reflection, str: string) {
     str = str.replace(
         /{@tutorial\s+(\S+?)[ \|]+(.+?)}/g,
-        (_match, p1, p2) => `<a href="${p1}">${p2}</a>`
+        (_match, p1, p2) => `<a href="${getTutorial(p1)}">${p2}</a>`
     );
     str = str.replace(
         /{@tutorial\s+(\S+?)}/g,
-        (_match, p1) => `<a href="${p1}">${p1}</a>`
+        (_match, p1) => `<a href="${getTutorial(p1)}">${p1}</a>`
     );
 
     // @linkcode and [[``]]...
@@ -1126,7 +1142,7 @@ function renderLinkTags(node: Reflection, str: string) {
         if (!p1.startsWith('{@inheritDoc')) {
             console.warn('Check capitalization of @inheritDoc', p1);
         }
-        let source = getReflectionByLink(p2);
+        const source = getReflectionByLink(p2);
         if (!source) {
             console.warn('Unresolved link in "' + node.name + '": ', p1);
             return p1;
@@ -1150,7 +1166,7 @@ function renderNotices(node: Reflection, str: string): string {
     lines.forEach((line) => {
         if (inShortBlock) {
             // Looking for an empty line
-            let m = line.match(/^\s*$/i);
+            const m = line.match(/^\s*$/i);
             if (m) {
                 if (currentBlock.length > 0) {
                     blocks.push({
@@ -1222,7 +1238,7 @@ function renderNotices(node: Reflection, str: string): string {
     return blocks
         .map((block) => {
             if (block.type) {
-                let noticeType =
+                const noticeType =
                     {
                         danger: 'danger',
                         warning: 'warning',
@@ -1243,11 +1259,12 @@ function renderNotices(node: Reflection, str: string): string {
 
 function renderComment(node: Reflection, style: string): string {
     if (!node) return '';
-    if (node.signatures && !node.comment)
+    if (node.signatures && !node.comment) {
         return renderComment(node.signatures[0], style);
+    }
     if (!node.comment) return '';
     let result = '';
-    let newLine = '\n';
+    const newLine = '\n';
 
     if (node.comment.shortText) {
         result += renderNotices(node, node.comment.shortText) + newLine;
@@ -1368,7 +1385,7 @@ function renderMethodCard(node: Reflection): string {
 
     // The @command tag can be placed either on each individual entry
     // or on the interface/class that groups them
-    let result = renderCommandCard(node);
+    const result = renderCommandCard(node);
     if (result) return result;
 
     const parent = getParent(node);
@@ -1555,7 +1572,7 @@ function renderClassCard(node) {
         '<dl><dt id="' +
         node.children
             .map((x) => {
-                let permalink = makePermalink(x);
+                const permalink = makePermalink(x);
                 let r = encodeURIComponent(permalink.anchor) + '">';
                 if (x.kind === 2048) {
                     // Method
@@ -1613,8 +1630,8 @@ function renderClassCard(node) {
  * of the interface should be interepreted as methods.
  */
 function renderCommandCard(node) {
-    let parent = getParent(node);
-    let commandTag = (
+    const parent = getParent(node);
+    const commandTag = (
         getTag(node, 'command') || getTag(parent, 'command')
     ).trim();
     if (!commandTag) return '';
@@ -1630,7 +1647,7 @@ function renderCommandCard(node) {
     } else {
         return '';
     }
-    let params = [...signature.parameters];
+    const params = [...signature.parameters];
 
     let result = '<div>';
     result += commandTag + punct('(');
@@ -1710,7 +1727,7 @@ function renderPropertyCard(node) {
 
     // The @command tag can be placed either on each individual entry
     // or on the interface/class that groups them
-    let result = renderCommandCard(node);
+    const result = renderCommandCard(node);
     if (result) return result;
 
     const parent = getParent(node);
@@ -1816,7 +1833,7 @@ function renderGroup(node: Reflection, group: Reflection): string {
 
 function renderGroups(node: Reflection): string {
     if (!node.groups) return '';
-    let groups = sortGroups(node.groups);
+    const groups = sortGroups(node.groups);
     return (
         renderComment(node, 'section') +
         groups
@@ -1878,7 +1895,7 @@ function render(node: Reflection | number, style = 'inline'): string {
         return renderGroups(node);
     }
 
-    let parent = getParent(node);
+    const parent = getParent(node);
 
     if (typeof node.kind === 'undefined') {
         if (node.type === 'abstract') {
@@ -2134,9 +2151,8 @@ abstract class Animal {
                         .join('</li>\n<li>' + punct('| ')) +
                     '</li></ul>'
                 );
-            } else {
-                return node.types.map((x) => render(x)).join(punct(' | '));
             }
+            return node.types.map((x) => render(x)).join(punct(' | '));
         }
 
         if (node.type === 'unknown') {
@@ -2434,7 +2450,7 @@ abstract class Animal {
             if (style === 'card' || style === 'section') {
                 result = renderTypeAliasCard(node);
             } else {
-                let def = render(node.type as Reflection, style);
+                const def = render(node.type as Reflection, style);
                 result = '';
                 if (node.typeParameter) {
                     result += punct('&lt;');
@@ -2467,8 +2483,6 @@ abstract class Animal {
 
     return result;
 }
-
-let gNodes: Reflection;
 
 function getReflectionsFromFile(src: string[], options): Reflection {
     let result = {};
@@ -2532,6 +2546,10 @@ function applyTemplate(
     return src;
 }
 
+let gNodes: Reflection;
+
+let gOptions: Options;
+
 /**
  *  Main entry point
  *
@@ -2542,9 +2560,10 @@ export function grok(
     options: Options
 ): { [file: string]: string } {
     try {
+        gOptions = options;
         gNodes = getReflectionsFromFile(src, options);
 
-        let sdkName = options.sdkName ?? '';
+        const sdkName = options.sdkName ?? '';
         const packageName = options.sdkName ?? gNodes.name ?? '';
 
         const content = render(gNodes, 'section');
