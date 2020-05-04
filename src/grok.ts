@@ -29,6 +29,10 @@ interface Options {
 
     documentTemplate?: string;
 
+    modules?: string[];
+
+    keywordSynonyms?: { [word: string]: string[] };
+
     /** If true, the documentation is output in separate files.
      * Otherwise, it's combined in a single file
      */
@@ -39,6 +43,7 @@ interface Options {
 type Tag =
     | 'alpha'
     | 'beta'
+    | 'category'
     | 'command'
     | 'deprecated'
     | 'eventproperty'
@@ -47,6 +52,7 @@ type Tag =
     | 'param'
     | 'ignore'
     | 'internal'
+    | 'keywords'
     | 'label'
     | 'override'
     | 'readonly'
@@ -88,10 +94,10 @@ type ReflectionKind =
     | 8388608;
 
 type Reflection = {
-    id: number;
-    name: string;
+    id?: number;
+    name?: string;
     kind?: ReflectionKind;
-    type:
+    type?:
         | 'abstract'
         | 'array'
         | 'conditionals'
@@ -114,7 +120,7 @@ type Reflection = {
     // 1024: Property, 4096: Call Signature, 16384: Constructor Signature
     // 8192: Index Signature, 32768: Parameter, 131072: Type Parameter,
     // 4194304: Type Alias
-    groups: Reflection[]; // For type = 'groups'
+    groups?: Reflection[]; // For type = 'groups'
     children?: Reflection[];
     title?: string; // For groups
     comment?: {
@@ -202,9 +208,12 @@ function keyword(k: string): string {
 
 function section(
     content: string,
-    options?: { permalink?: Permalink; className?: string }
+    options?: { permalink?: Permalink; className?: string; keywords?: string }
 ): string {
     let result = '<section';
+    if (options?.keywords) {
+        result += ' data-keywords="' + options.keywords.toLowerCase() + '"';
+    }
     if (options?.permalink?.anchor) {
         result += ' id="' + encodeURIComponent(options.permalink.anchor) + '"';
     }
@@ -310,7 +319,7 @@ function getReflectionByID(id: number, root = gNodes): Reflection {
 function getReflectionsByName(name: string, root?: Reflection): Reflection[] {
     if (!root) root = gNodes;
     let result = [];
-    if (root.name === name) result.push(root);
+    if (getName(root) === name) result.push(root);
     if (root.children) {
         root.children.forEach((x) => {
             result = [...result, ...getReflectionsByName(name, x)];
@@ -474,7 +483,7 @@ const KIND_ORDER = {
     4: 10, // enum
 };
 
-function sortGroups(groups) {
+function sortGroups(groups: Reflection[]): Reflection[] {
     return groups.sort((a, b) => {
         console.assert(KIND_ORDER[b.kind] && KIND_ORDER[a.kind]);
         return KIND_ORDER[a.kind] === KIND_ORDER[b.kind]
@@ -612,6 +621,15 @@ function makePermalink(node: Reflection): Permalink | null {
                   anchor: qualifiedSymbol,
                   title: nodeName,
               };
+        // There's a bug in typedoc:
+        // https://github.com/TypeStrong/typedoc/issues/1284
+        // exported modules are returned as 'namespace' with a stringLiteral value
+        if (
+            parent.kind === 1 ||
+            (parent.kind === 2 && /^"(.*)"$/.test(parent.name))
+        ) {
+            result.title = nodeName;
+        }
     }
     if (shouldIgnore(node)) {
         result.anchor = '';
@@ -759,6 +777,66 @@ function hasTag(node: Reflection, tag: Tag) {
     );
 }
 
+function getKeywords(node: Reflection): string[] {
+    if (node.signatures && !node.comment) {
+        return getKeywords(node.signatures[0]);
+    }
+    let keywords = getTag(node, 'keywords');
+    if (!keywords && hasTag(node, 'keyword' as any)) {
+        console.warn(
+            'The tag for keywords is "@keywords", not "@keyword" ',
+            getQualifiedName(node)
+        );
+        keywords = getTag(node, 'keyword' as any);
+    }
+
+    let result = (keywords ?? '').split(',');
+
+    result.push(
+        {
+            2: 'namespace',
+            4: 'enum',
+            32: 'variable',
+            16: '', // Enum member
+            64: 'function',
+            128: 'class',
+            256: 'interface',
+            1024: '', // property, no selector (unless parent is class, see below)
+            2048: '', // method, handled below
+            4096: 'function', // call signature (functions)
+            262144: 'instance', // get/set
+            4194304: 'type', // 131072? 65535?
+        }[node.kind] ?? ''
+    );
+
+    result.push(getName(node));
+
+    if (hasTag(node, 'category' as any)) {
+        const category = getTag(node, 'category' as any)
+            .split(' ')
+            .map((x) => x.toLowerCase().trim());
+        result = [...result, ...category];
+    }
+
+    // Add synonyms
+    result = [].concat(
+        ...result.map((word) => {
+            if (gSynonyms[word]) {
+                return [word, ...gSynonyms[word]];
+            }
+            return [word];
+        })
+    );
+
+    // Remove empty keywords, normalize to lowercase
+    result = result
+        .filter((x) => !!x)
+        .map((x: string) => x.trim().toLowerCase());
+
+    // Remove duplicates
+    return [...new Set(result)];
+}
+
 function renderFlags(node: Reflection, style = 'block') {
     if (!node) return '';
     let result = '';
@@ -862,6 +940,9 @@ function renderTag(node: Reflection, tag: string, text: string) {
         case 'global':
             // Globals are grouped together and indicated separately
             break;
+        case 'keywords':
+            // Keywords are handled separately
+            break;
         case 'command':
             // The @command tag indicates that the properties of a class or
             // interface specify the selectors of a command to be invoked with
@@ -948,7 +1029,7 @@ function isVoid(node: Reflection): boolean {
  *
  */
 
-function getQualifiedSymbol(parent: Reflection, node: Reflection) {
+function getQualifiedSymbol(parent: Reflection, node: Reflection): string {
     if (node.kind === 0) {
         // File-level
         return '';
@@ -1049,6 +1130,9 @@ function getQualifiedName(node: Reflection): string {
             trimQuotes(node.name).replace(/\.d$/, '') +
             '"</strong>'
         );
+    }
+    if (node.kind === 1) {
+        return keyword('module ') + '<strong>"' + getName(node) + '"</strong>';
     }
     return (
         keyword(
@@ -1372,7 +1456,7 @@ function renderCard(
         ) {
             if (
                 parent &&
-                (parent.kind === 2 ||
+                ((parent.kind === 2 && !/^"(.*)"$/.test(parent.name)) ||
                     parent.kind === 128 ||
                     parent.kind === 256)
             ) {
@@ -1397,8 +1481,11 @@ function renderCard(
         permalink,
         { deprecated: hasTag(node, 'deprecated') }
     );
-
-    return section(header + content, { permalink, className: 'card' });
+    return section(header + content, {
+        permalink,
+        className: 'card',
+        keywords: getKeywords(node).join(', '),
+    });
 }
 
 /**
@@ -1796,7 +1883,6 @@ function renderEnumCard(node: Reflection): string {
 function renderTypeAliasCard(node: Reflection): string {
     if (shouldIgnore(node)) return '';
     let result = renderComment(node, 'block');
-
     const typeDef = render(node, 'block');
     if (typeDef) {
         if (result) {
@@ -1842,8 +1928,16 @@ function renderGroup(node: Reflection, group: Reflection): string {
             // A group of things other than namespaces, enums, classes or
             // interfaces
             // with more than single entry
-            const displayTitle =
-                { 'Type aliases': 'Types' }[group.title] || group.title;
+            const displayTitle = {
+                1: 'Modules',
+                2: 'Namespaces',
+                4: 'Enums',
+                32: 'Variables',
+                64: 'Functions',
+                128: 'Classes',
+                245: 'Interfaces',
+                4194304: 'Types',
+            }[group.kind];
             header += renderIndex(node, displayTitle, topics);
         }
     }
@@ -2027,14 +2121,15 @@ abstract class Animal {
                 );
             }
             if (candidate) {
-                const permalink = makePermalink(candidate);
-                if (candidate.kind === 16) {
-                    // For enum members, include the parent (the Enum) name
-                    permalink.title = parent.name + '.' + node.name;
-                } else {
-                    permalink.title = node.name; // Don't render(), it's a reference, we just need its name
-                }
-                return renderPermalink(permalink) + typeArguments;
+                return (
+                    renderPermalink(
+                        makePermalink(candidate),
+                        candidate.kind === 16
+                            ? // For enum members, include the parent (the Enum) name
+                              parent.name + '.' + node.name
+                            : node.name
+                    ) + typeArguments
+                );
             }
 
             // Find by name in the global space
@@ -2499,14 +2594,7 @@ abstract class Animal {
                         result += punct(' = ');
                     }
                 }
-                if (def && (node.type as Reflection).type === 'reference') {
-                    result +=
-                        renderPermalink(
-                            makePermalink(node.type as Reflection)
-                        ) + def;
-                } else if (def) {
-                    result += def;
-                }
+                result += def;
             }
             break;
 
@@ -2522,8 +2610,9 @@ abstract class Animal {
 }
 
 let gNodes: Reflection;
+let gSynonyms: { [word: string]: string[] };
 
-function getReflectionsFromFile(src: string[], options): Reflection {
+function getReflectionsFromFile(src: string[], options: Options): Reflection {
     let result = {};
     const app = new TypeDoc.Application();
 
@@ -2595,12 +2684,38 @@ export function grok(
     options: Options
 ): { [file: string]: string } {
     try {
+        gSynonyms = options.keywordSynonyms ?? {};
         gNodes = getReflectionsFromFile(src, options);
 
         let sdkName = options.sdkName ?? '';
         const packageName = options.sdkName ?? gNodes.name ?? '';
 
-        const content = render(gNodes, 'section');
+        let content;
+        if (options.modules) {
+            const modules = options.modules
+                .map((x) => getReflectionByName(x, gNodes, 1))
+                .filter((x) => !!x);
+            if (modules.length === 0) {
+                console.warn('Modules not found: ', options.modules.join(', '));
+            } else if (modules.length !== options.modules.length) {
+                console.warn(
+                    'Some modules not found: ',
+                    options.modules
+                        .map((x) => getReflectionByName(x, gNodes, 1))
+                        .filter((x) => x === null)
+                        .join(', ')
+                );
+            }
+            content = renderIndex(gNodes, 'Modules', [
+                {
+                    title: '',
+                    children: modules,
+                },
+            ]);
+            content += modules.map((x) => render(x, 'section')).join('');
+            content = section(content);
+        }
+        if (!content) content = render(gNodes, 'section');
         if (content) {
             const document = applyTemplate(options.documentTemplate, {
                 packageName: escapeYAMLString(packageName),

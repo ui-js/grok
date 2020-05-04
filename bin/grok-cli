@@ -40,6 +40,9 @@ function keyword(k) {
 function section(content, options) {
     var _a;
     let result = '<section';
+    if (options === null || options === void 0 ? void 0 : options.keywords) {
+        result += ' data-keywords="' + options.keywords.toLowerCase() + '"';
+    }
     if ((_a = options === null || options === void 0 ? void 0 : options.permalink) === null || _a === void 0 ? void 0 : _a.anchor) {
         result += ' id="' + encodeURIComponent(options.permalink.anchor) + '"';
     }
@@ -120,7 +123,7 @@ function getReflectionsByName(name, root) {
     if (!root)
         root = gNodes;
     let result = [];
-    if (root.name === name)
+    if (getName(root) === name)
         result.push(root);
     if (root.children) {
         root.children.forEach((x) => {
@@ -329,6 +332,10 @@ function makePermalink(node) {
                 anchor: qualifiedSymbol,
                 title: nodeName,
             };
+        if (parent.kind === 1 ||
+            (parent.kind === 2 && /^"(.*)"$/.test(parent.name))) {
+            result.title = nodeName;
+        }
     }
     if (shouldIgnore(node)) {
         result.anchor = '';
@@ -407,6 +414,49 @@ function hasTag(node, tag) {
         node.comment &&
         node.comment.tags &&
         node.comment.tags.filter((x) => x.tag === tag).length > 0);
+}
+function getKeywords(node) {
+    var _a;
+    if (node.signatures && !node.comment) {
+        return getKeywords(node.signatures[0]);
+    }
+    let keywords = getTag(node, 'keywords');
+    if (!keywords && hasTag(node, 'keyword')) {
+        console.warn('The tag for keywords is "@keywords", not "@keyword" ', getQualifiedName(node));
+        keywords = getTag(node, 'keyword');
+    }
+    let result = (keywords !== null && keywords !== void 0 ? keywords : '').split(',');
+    result.push((_a = {
+        2: 'namespace',
+        4: 'enum',
+        32: 'variable',
+        16: '',
+        64: 'function',
+        128: 'class',
+        256: 'interface',
+        1024: '',
+        2048: '',
+        4096: 'function',
+        262144: 'instance',
+        4194304: 'type',
+    }[node.kind]) !== null && _a !== void 0 ? _a : '');
+    result.push(getName(node));
+    if (hasTag(node, 'category')) {
+        const category = getTag(node, 'category')
+            .split(' ')
+            .map((x) => x.toLowerCase().trim());
+        result = [...result, ...category];
+    }
+    result = [].concat(...result.map((word) => {
+        if (gSynonyms[word]) {
+            return [word, ...gSynonyms[word]];
+        }
+        return [word];
+    }));
+    result = result
+        .filter((x) => !!x)
+        .map((x) => x.trim().toLowerCase());
+    return [...new Set(result)];
 }
 function renderFlags(node, style = 'block') {
     if (!node)
@@ -492,6 +542,8 @@ function renderTag(node, tag, text) {
         case 'category':
             break;
         case 'global':
+            break;
+        case 'keywords':
             break;
         case 'command':
             break;
@@ -610,6 +662,9 @@ function getQualifiedName(node) {
             '<strong>"' +
             trimQuotes(node.name).replace(/\.d$/, '') +
             '"</strong>');
+    }
+    if (node.kind === 1) {
+        return keyword('module ') + '<strong>"' + getName(node) + '"</strong>';
     }
     return (keyword((_a = {
         256: 'interface ',
@@ -818,7 +873,7 @@ function renderCard(node, displayName, content) {
             node.kind === 1024 ||
             node.kind === 2048) {
             if (parent &&
-                (parent.kind === 2 ||
+                ((parent.kind === 2 && !/^"(.*)"$/.test(parent.name)) ||
                     parent.kind === 128 ||
                     parent.kind === 256)) {
                 displayName = getName(parent) + punct('.') + displayName;
@@ -831,7 +886,11 @@ function renderCard(node, displayName, content) {
     const permalink = makePermalink(node);
     console.assert(!permalink.document);
     const header = heading(3, getQualifiedName(parent), displayName, permalink, { deprecated: hasTag(node, 'deprecated') });
-    return section(header + content, { permalink, className: 'card' });
+    return section(header + content, {
+        permalink,
+        className: 'card',
+        keywords: getKeywords(node).join(', '),
+    });
 }
 function renderMethodCard(node) {
     if (shouldIgnore(node))
@@ -1127,7 +1186,16 @@ function renderGroup(node, group) {
         }
         else if ((group.kind & (2 | 4 | 128 | 256)) === 0 &&
             group.children.length > 1) {
-            const displayTitle = { 'Type aliases': 'Types' }[group.title] || group.title;
+            const displayTitle = {
+                1: 'Modules',
+                2: 'Namespaces',
+                4: 'Enums',
+                32: 'Variables',
+                64: 'Functions',
+                128: 'Classes',
+                245: 'Interfaces',
+                4194304: 'Types',
+            }[group.kind];
             header += renderIndex(node, displayTitle, topics);
         }
     }
@@ -1239,14 +1307,10 @@ function render(node, style = 'inline') {
                 candidate = getReflectionByName(node.name, parent, 4 | 128 | 256 | 4194304);
             }
             if (candidate) {
-                const permalink = makePermalink(candidate);
-                if (candidate.kind === 16) {
-                    permalink.title = parent.name + '.' + node.name;
-                }
-                else {
-                    permalink.title = node.name;
-                }
-                return renderPermalink(permalink) + typeArguments;
+                return (renderPermalink(makePermalink(candidate), candidate.kind === 16
+                    ?
+                        parent.name + '.' + node.name
+                    : node.name) + typeArguments);
             }
             candidate = getReflectionByName(node.name, undefined, 4 | 128 | 256 | 4194304);
             if (candidate) {
@@ -1626,13 +1690,7 @@ function render(node, style = 'inline') {
                         result += punct(' = ');
                     }
                 }
-                if (def && node.type.type === 'reference') {
-                    result +=
-                        renderPermalink(makePermalink(node.type)) + def;
-                }
-                else if (def) {
-                    result += def;
-                }
+                result += def;
             }
             break;
         case 8388608:
@@ -1644,6 +1702,7 @@ function render(node, style = 'inline') {
     return result;
 }
 let gNodes;
+let gSynonyms;
 function getReflectionsFromFile(src, options) {
     let result = {};
     const app = new TypeDoc.Application();
@@ -1683,19 +1742,44 @@ function applyTemplate(src, substitutions) {
     return src;
 }
 function grok(src, options) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     try {
+        gSynonyms = (_a = options.keywordSynonyms) !== null && _a !== void 0 ? _a : {};
         gNodes = getReflectionsFromFile(src, options);
-        let sdkName = (_a = options.sdkName) !== null && _a !== void 0 ? _a : '';
-        const packageName = (_c = (_b = options.sdkName) !== null && _b !== void 0 ? _b : gNodes.name) !== null && _c !== void 0 ? _c : '';
-        const content = render(gNodes, 'section');
+        let sdkName = (_b = options.sdkName) !== null && _b !== void 0 ? _b : '';
+        const packageName = (_d = (_c = options.sdkName) !== null && _c !== void 0 ? _c : gNodes.name) !== null && _d !== void 0 ? _d : '';
+        let content;
+        if (options.modules) {
+            const modules = options.modules
+                .map((x) => getReflectionByName(x, gNodes, 1))
+                .filter((x) => !!x);
+            if (modules.length === 0) {
+                console.warn('Modules not found: ', options.modules.join(', '));
+            }
+            else if (modules.length !== options.modules.length) {
+                console.warn('Some modules not found: ', options.modules
+                    .map((x) => getReflectionByName(x, gNodes, 1))
+                    .filter((x) => x === null)
+                    .join(', '));
+            }
+            content = renderIndex(gNodes, 'Modules', [
+                {
+                    title: '',
+                    children: modules,
+                },
+            ]);
+            content += modules.map((x) => render(x, 'section')).join('');
+            content = section(content);
+        }
+        if (!content)
+            content = render(gNodes, 'section');
         if (content) {
             const document = applyTemplate(options.documentTemplate, {
                 packageName: escapeYAMLString(packageName),
                 sdkName: escapeYAMLString(trimNewline(sdkName)),
                 content,
             });
-            return { [(_d = options === null || options === void 0 ? void 0 : options.outFile) !== null && _d !== void 0 ? _d : 'index.html']: document };
+            return { [(_e = options === null || options === void 0 ? void 0 : options.outFile) !== null && _e !== void 0 ? _e : 'index.html']: document };
         }
     }
     catch (err) {
