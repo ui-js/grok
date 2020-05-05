@@ -31,16 +31,22 @@ Configuration can be specified:
 
 The configuration can include the following keys:
 
--   `sdkName` the name of the SDK being documented
+-   `sdkName` The name of the SDK being documented
+-   `cssVariables` A dictionary of variables and their associated value which will be attached to the `<body>` tag.
 -   `tutorialPath` Prefix added to the value of a `{@tutorial}` tag to determine
     the URL to redirected to.
+
     For example, `{@tutorial readme.html}` with `tutorialPath = 'https://example.com/docs'`
     will redirect to 'https://example.com/docs/readme.html'
--   `modules` an array of module names that will be documented. This is useful both to indicate the order in which the modules should be displayed in the documentation and to 'hide' any unnecessary modules, while still preserving their visibility to the parser.
--   `documentTemplate` a string which will be used to build the output file, with the following substrings substituted:
+
+-   `modules` An array of module names that will be documented. This is useful both to indicate the order in which the modules should be displayed in the documentation and to 'hide' any unnecessary modules, while still preserving their visibility to the parser.
+-   `documentTemplate` A string or function which will be used to build the output file. If a string, the following substitutions will be applied:
+
     -   `{{content}}` HTML markup of the documentation (suitable for as the content of a `<body>` tag)
-    -   `{{sdkName}}` the name of the SDK, as indicated above
+    -   `{{sdkName}}` The name of the SDK, as indicated above
     -   `{{packageName}}`
+
+    If a function, the function is passed an object literal with the following properties: `content`, `sdkName`, `packageName` and `cssVariables` which is the dictionary specified in the options.
 
 ## Tags
 

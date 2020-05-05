@@ -53,18 +53,29 @@ function build(argv): void {
             sdkName: 'module',
             verbose: false,
             tutorialPath: '',
-            documentTemplate: `<!doctype html>
+            cssVariables: {
+                monospace: 'IBM Plex Mono, monospace',
+                'primary-color': '#0066ce',
+            },
+            documentTemplate: (options) => `<!doctype html>
 <html class="no-js" lang="">
 
 <head>
     <meta charset="utf-8">
-    <title>{{sdkName}} -- {{packageName}}</title>
+    <title>${options.packageName} -- ${options.packageName}</title>
     <meta name="description" content="">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <link rel="manifest" href="site.webmanifest">
     <link rel="apple-touch-icon" href="icon.png">
     <style>
+    body {${Object.keys(options.cssVariables)
+        .map((x) => '--' + x + ':' + options.cssVariables[x])
+        .join(';')}}
+    .main {
+        margin: auto;
+        max-width: 820px;
+    }
     .sr-only {
         position: absolute !important;
         clip: rect(1px, 1px, 1px, 1px);
@@ -148,6 +159,41 @@ function build(argv): void {
         box-sizing: border-box;
     }
 
+    .index ul,
+    ul.index {
+        column-width: 28ex; // Approx. maximum length of a symbol (in char)
+        column-gap: 20px;
+        padding: 0;
+        list-style: none;
+        line-height: 1.333;
+    }
+    
+    .index li {
+        display: flex;
+        font-family: var(--monospace);
+        margin: 0;
+        box-sizing: content-box;
+        break-inside: avoid-column;
+    }
+    
+    .index li a,
+    .index li a:visited {
+        text-decoration: none;
+    }
+    
+    .index li a:hover,
+    .index li a:active {
+        color: var(--primary-color);
+    }
+    /* Categories */
+    .index h3 {
+        background: transparent;
+        border: none;
+        font-weight: 700;
+        margin: 0;
+        padding: 0;
+    }
+    
     /* Anchor icon */
     .permalink { 
         float: right;
@@ -191,7 +237,7 @@ function build(argv): void {
         font-weight: 400;
         font-variant: normal;
         font-style: normal;
-        color: #0066ce;
+        color: var(--primary-color);
     
         height: 22px;
     
@@ -206,7 +252,7 @@ function build(argv): void {
         box-sizing: border-box;
         -webkit-font-smoothing: antialiased;
     
-        border: 1px solid #0066ce;
+        border: 1px solid var(--primary-color);
         border-radius: 3px;
     
         background: transparent;
@@ -233,7 +279,10 @@ function build(argv): void {
         </symbol>
     </defs>
     </svg>
-    {{content}}
+    <div class='main'>
+    ${options.content}
+    <div>Documentation built with <a href="https://github.com/ui-js/grok"><code>grok</code></a></div>
+    </div>
 </body>    
 </html>
 `,
