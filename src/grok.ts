@@ -31,7 +31,8 @@ interface Options {
     ignoreErrors?: boolean;
     // verbose?: boolean;
 
-    documentTemplate?: string;
+    documentTemplate?: string | Function;
+    cssVariables: { [variable: string]: string };
 
     keywordSynonyms?: { [word: string]: string[] };
 
@@ -1277,7 +1278,7 @@ function renderLinkTags(node: Reflection, str: string) {
         if (!p1.startsWith('{@inheritDoc')) {
             console.warn('Check capitalization of @inheritDoc', p1);
         }
-        const source = getReflectionByLink(p2);
+        const source = getReflectionByLink(p2, node);
         if (!source) {
             console.warn('Unresolved link in "' + node.name + '": ', p1);
             return p1;
@@ -2644,6 +2645,8 @@ function getReflectionsFromFile(src: string[], options: Options): Reflection {
         // To properly resolve 'import' statements
         moduleResolution: 'node',
 
+        noEmit: 'true',
+
         // We want to preserve the internals in the AST
         // and we'll strip/hide them separately
         stripInternal: false,
@@ -2675,16 +2678,24 @@ function getReflectionsFromFile(src: string[], options: Options): Reflection {
 }
 
 function applyTemplate(
-    src: string,
-    substitutions: { [key: string]: string }
+    src: string | Function,
+    substitutions: { [key: string]: any }
 ): string {
-    Object.keys(substitutions).forEach((key) => {
-        src = src.replace(
-            new RegExp('{{' + key + '}}', 'g'),
-            substitutions[key]
-        );
-    });
-    return src;
+    if (typeof src === 'string') {
+        Object.keys(substitutions).forEach((key) => {
+            if (typeof substitutions[key] === 'string') {
+                src = (src as string).replace(
+                    new RegExp('{{' + key + '}}', 'g'),
+                    substitutions[key]
+                );
+            }
+        });
+        return src;
+    }
+    if (typeof src === 'function') {
+        return src(substitutions);
+    }
+    return '';
 }
 
 let gNodes: Reflection;
@@ -2737,6 +2748,7 @@ export function grok(
             const document = applyTemplate(options.documentTemplate, {
                 packageName: escapeYAMLString(packageName),
                 sdkName: escapeYAMLString(trimNewline(sdkName)),
+                cssVariables: options.cssVariables,
                 content,
             });
             return { [options?.outFile ?? 'index.html']: document };

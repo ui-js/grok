@@ -13,7 +13,7 @@
             "outFiles": ["${workspaceFolder}/**/*.js"],
             "preLaunchTask": "npm: build",
             "args": [
-                "../mathlive/mathlive/dist/mathlive.d.ts",
+                "../mathlive/mathlive/dist/",
                 // "test/function-test.d.ts",
                 "--outDir",
                 "build",
