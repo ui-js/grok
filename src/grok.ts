@@ -940,7 +940,7 @@ function renderTag(node: Reflection, tag: string, text: string) {
             // This comment is for internal use only. Do not output it
             // in the API documentation.
             break;
-        case 'packagedocumentation':
+        case 'packageDocumentation':
             // This tag indicates this is the top-level documentation
             // We handle it separately, no need to emit it here.
             break;
