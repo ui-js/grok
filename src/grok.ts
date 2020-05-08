@@ -1249,21 +1249,15 @@ function renderLinkTags(node: Reflection, str: string) {
     );
 
     // Plain link...
-    // ... @link and @linkplain no title
-    str = str.replace(
-        /{@(?:link|linkplain)\s+(\S+?)}/g,
-        (_match, p1) => `<a href="${resolveLink(node, p1)}">${p1}</a>`
-    );
-
     // ... @link and @linkplain with title
     str = str.replace(
         /{@(?:link|linkplain)\s+(\S+?)\s*\|\s*(.+?)}/g,
         (_match, p1, p2) => `<a href="${resolveLink(node, p1)}">${p2}</a>`
     );
 
-    // ... [[]]
+    // ... @link and @linkplain no title
     str = str.replace(
-        /\[\[(\S+?)\]\]/g,
+        /{@(?:link|linkplain)\s+(\S+?)}/g,
         (_match, p1) => `<a href="${resolveLink(node, p1)}">${p1}</a>`
     );
 
@@ -1271,6 +1265,12 @@ function renderLinkTags(node: Reflection, str: string) {
     str = str.replace(
         /\[\[(\S+?)\s*\|\s*(.+?)\]\]/g,
         (_match, p1, p2) => `<a href="${resolveLink(node, p1)}">${p2}</a>`
+    );
+
+    // ... [[]]
+    str = str.replace(
+        /\[\[(\S+?)\]\]/g,
+        (_match, p1) => `<a href="${resolveLink(node, p1)}">${p1}</a>`
     );
 
     // {@inheritDoc ...}
