@@ -17,7 +17,7 @@ import { terminal } from './terminal';
 /**
  * Merge "source" into object by doing a deep copy of enumerable properties.
  */
-function mergeObject(object: object, source: object): object {
+function mergeObject(object: any, source: any): any {
     if (object === source) return;
     if (!source) return;
     Object.keys(source).forEach((key) => {

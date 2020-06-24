@@ -3,7 +3,7 @@ import { terser } from 'rollup-plugin-terser';
 import typescript from 'rollup-plugin-typescript2';
 import { eslint } from 'rollup-plugin-eslint';
 import pkg from '.././package.json';
-import copy from 'rollup-plugin-copy';
+// import copy from 'rollup-plugin-copy';
 
 process.env.BUILD = process.env.BUILD || 'development';
 const PRODUCTION = process.env.BUILD === 'production';
@@ -22,7 +22,6 @@ const TYPESCRIPT_OPTIONS = {
 };
 
 const TERSER_OPTIONS = {
-    sourcemap: false,
     compress: {
         drop_console: false,
         drop_debugger: true,
@@ -53,9 +52,9 @@ export default [
             PRODUCTION && eslint(),
             typescript(TYPESCRIPT_OPTIONS),
             PRODUCTION && terser(TERSER_OPTIONS),
-            copy({
-                targets: [{ src: 'package.json', dest: 'bin' }],
-            }),
+            // copy({
+            //     targets: [{ src: 'package.json', dest: 'bin' }],
+            // }),
         ],
         watch: {
             clearScreen: true,

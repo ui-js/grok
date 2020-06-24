@@ -31,7 +31,10 @@ interface Options {
     ignoreErrors?: boolean;
     // verbose?: boolean;
 
-    documentTemplate?: string | Function;
+    documentTemplate?:
+        | string
+        | ((substitutions: { [key: string]: any }) => string);
+
     cssVariables: { [variable: string]: string };
 
     keywordSynonyms?: { [word: string]: string[] };
@@ -516,8 +519,7 @@ function sortGroups(groups: Reflection[]): Reflection[] {
 
 function getCategories(node: Reflection, kind: number): Category[] {
     let result = [];
-    const children =
-        node.groups && node.groups.filter((x) => (x.kind & kind) !== 0);
+    const children = node.groups?.filter((x) => (x.kind & kind) !== 0);
     if (!children || children.length !== 1) {
         // No groups. Are there categories?
         if (node.categories) {
@@ -1097,13 +1099,13 @@ function getQualifiedSymbol(parent: Reflection, node: Reflection): string {
         // If the parent is a class, use a 'static' or 'instance'
         // selector for properties (1024) and methods (2048)
         if (node.kind === 1024 || node.kind === 2048) {
-            if (node.flags && node.flags.isStatic) {
+            if (node.flags?.isStatic) {
                 selector = 'static';
             } else {
                 selector = 'instance';
             }
         }
-    } else if (parent && parent.kind === 256) {
+    } else if (parent?.kind === 256) {
         // There's no selector for members of interfaces
         selector = '';
     }
@@ -2661,7 +2663,7 @@ function getReflectionsFromFile(src: string[], options: Options): Reflection {
     src = app.expandInputFiles(src.map((x) => path.resolve(path.normalize(x))));
 
     const convertResult = app.converter.convert(src);
-    if (convertResult.errors && convertResult.errors.length) {
+    if (convertResult.errors?.length) {
         app.logger.diagnostics(convertResult.errors);
         if (options.ignoreErrors) {
             app.logger.resetErrors();
@@ -2678,7 +2680,7 @@ function getReflectionsFromFile(src: string[], options: Options): Reflection {
 }
 
 function applyTemplate(
-    src: string | Function,
+    src: string | ((substitutions: { [key: string]: any }) => string),
     substitutions: { [key: string]: any }
 ): string {
     if (typeof src === 'string') {
