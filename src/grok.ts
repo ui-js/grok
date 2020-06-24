@@ -659,7 +659,8 @@ function makePermalink(node: Reflection): Permalink | null {
  * - title: a string
  */
 function renderPermalink(permalink: Permalink, title?: string): string {
-    title = title || permalink.title;
+    if (!permalink) return '';
+    title = title ?? permalink.title;
     if (permalink.document && permalink.anchor) {
         // This is an external reference (with an anchor)
         return `<a href="${permalink.document}#${encodeURIComponent(

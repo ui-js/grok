@@ -1,4 +1,4 @@
-const pkg = require('./package.json');
+const pkg = require('../package.json');
 require('please-upgrade-node')(pkg);
 
 const updateNotifier = require('update-notifier');
