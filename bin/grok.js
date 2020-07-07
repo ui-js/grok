@@ -1,1 +1,1822 @@
-Object.defineProperty(exports,"__esModule",{value:!0});const e=require("typedoc"),n=require("highlight.js"),t=require("path"),r=new(require("markdown-it"))({html:!0,typographer:!0,highlight:function(e,t){if((null==t||t)&&n.getLanguage(t))try{return n.highlight(t,e).value}catch(e){console.log(e)}return""}});function i(e,n){return n?'<span class="'+n+'">'+e+"</span>":"<span>"+e+"</span>"}function o(e,n){return n?'\n<div class="'+n+'">'+e+"</div>\n":"\n<div>"+e+"</div>\n"}function a(e){return'<span class="punctuation">'+e+"</span>"}function l(e){return'<span class="keyword">'+e+"</span>"}function s(e,n){var t;let r="<section";return(null==n?void 0:n.keywords)&&(r+=' data-keywords="'+n.keywords.toLowerCase()+'"'),(null===(t=null==n?void 0:n.permalink)||void 0===t?void 0:t.anchor)&&(r+=' id="'+encodeURIComponent(n.permalink.anchor)+'"'),(null==n?void 0:n.className)&&(r+=' class="'+n.className+'"'),r+=">"+e,r+"\n</section>\n"}function c(e,n,t,r,o){const a="h"+Number(e).toString();let l=n?i(n,"subhead"):"";var s;return(null==r?void 0:r.anchor)?(l+=(s=i(t,(null==o?void 0:o.deprecated)?"head deprecated":"head"),i(s+'<svg class="highlighting-mark"><use xlink:href="#highlighting-mark-'+(Math.floor(3*Math.random())+1)+'"></use></svg>',"highlighting-mark-container")),l=i(l,"stack"),l+=j(r)):(l+=i(t,(null==o?void 0:o.deprecated)?"head deprecated":"head"),l=i(l,"stack")),"<"+a+((null==o?void 0:o.className)?' class="'+o.className+'"':"")+">"+l+"</"+a+">"}function d(e,n=G){var t,r;if("reference"!==n.type&&n.id===e)return n;let i;return null!==(r=null===(t=n.children)||void 0===t?void 0:t.some(n=>(i=d(e,n),null!==i)))&&void 0!==r&&r?i:null}function u(e,n,t){let r=[];if(r=function e(n,t){t||(t=G);let r=[];return k(t)===n&&r.push(t),t.children&&t.children.forEach(t=>{r=[...r,...e(n,t)]}),r}(e,n),r.length>0){if(r.sort((e,n)=>n.kind-e.kind),"number"==typeof t)r=r.filter(e=>0!=(e.kind&t));else if("static"===t)r=r.filter(e=>2048===e.kind&&$(e,"isStatic"));else if("string"==typeof t){const e=p[t];r=r.filter(n=>0!=(n.kind&e))}if(r.length>0)return r[0]}return null}const p={namespace:2,enum:4,variable:32,function:64,class:128,interface:256,instance:265216,static:3072,type:4194304};function m(e){const n=e.match(/^\(([^\:]+)(\:([^\)]+))?\)$/);return n?[n[1],n[3]]:[e,void 0]}function f(e,n){const t=e.split(".");if(1===t.length){const[e,r]=m(t[0]);return u(e,n,r)||u(e,g(n),r)||u(e,null,r)}const r=t.pop();let i=null;for(const e of t){const[n,t]=m(e);i=u(n,i,t)}return f(r,i)}function g(e){const n=function e(n,t=G){if(!n)return null;if(n.id===t.id)return[t];if(t.children)for(const r of t.children){const i=e(n,r);if(i)return[...i,t]}return null}(e);return n?n[1]:null}function h(e,n){return n.map(n=>e.children.filter(e=>e.id===n)[0])}function k(e){return 1===e.kind?F(e):e.name}function y(e){return e.sort((e,n)=>e.title===n.title?0:"Other"===e.title?1:"Other"===n.title||e.title<n.title?-1:1)}const v={512:1,64:2,2048:3,262144:4,1024:5,32:6,256:7,128:8,4194304:9,4:10};function b(e){var n;if(!(e=d(e.id))||0===e.kind)return null;const t=g(e);if(!t)return{anchor:"",title:null!==(n=e.name)&&void 0!==n?n:""};let r;if(512===e.kind){const e=b(g(t));r=e?{anchor:(e.anchor?e.anchor+".":"")+t.name+":constructor",title:"new "+t.name+"()"}:{anchor:t.name+":constructor",title:"new "+t.name+"()"}}else{const n=function(e,n){var t;if(0===n.kind)return"";if(1===n.kind)return console.assert(0===e.kind),1===e.children.length?"":'("'+F(n)+'":module)';if(2===n.kind)return/^"(.*)"$/.test(n.name)?'("'+R(n.name)+'":module)':"("+n.name+'":namespace)';"reference"===n.type&&(n=d(n.id));const r=n.name;let i={2:"namespace",4:"enum",32:"variable",16:"",64:"function",128:"class",256:"interface",1024:"",2048:"",4096:"function",262144:"instance",4194304:"type"}[n.kind];if(console.assert(void 0!==i),512===n.kind)return":constructor";e&&128===e.kind?1024!==n.kind&&2048!==n.kind||(i=(null===(t=n.flags)||void 0===t?void 0:t.isStatic)?"static":"instance"):256===(null==e?void 0:e.kind)&&(i="");const o=S(n,"label");return o&&(i=o),i?`(${r}:${i})`:r}(t,e),i=b(t),o=k(e);r=i?{anchor:(i.anchor?i.anchor+".":"")+n,title:i.title+"."+o}:{anchor:n,title:o},(1===t.kind||2===t.kind&&/^"(.*)"$/.test(t.name))&&(r.title=o)}return D(e)&&(r.anchor=""),r}function x(e,n){return e?(n=null!=n?n:e.title,e.document&&e.anchor?`<a href="${e.document}#${encodeURIComponent(e.anchor)}">${n}</a>`:e.document?`<a href="${e.document}}">${n}</a>`:e.anchor?`<a href="#${encodeURIComponent(e.anchor)}">${n}</a>`:n):""}function j(e){return console.assert(!e.document),'<a class="permalink" href="#'+encodeURIComponent(e.anchor)+'" title="Permalink"><span class="sr-only"> Permalink </span><svg><use xlink:href="#link"></use></svg></a>'}function w(e,n,t,r){if(!t||0===t.length)return"";let i="";return n&&(i=c(3,T(e),n)),1===t.length&&t[0].children.length<=1?i:(r=r||{symbolSuffix:""},i+t.map(e=>{let n="";return e.title&&(n+=`\n\n<h4>${e.title}</h4>\n`),n+='\n<div class="index">'+function(e,n){if(!e||0===e.length)return"";let t="";return Array.isArray(e[0])?(t+="\n<dl>\n",t+=e.map(e=>"\n<dt>"+e[0]+"</dt>\n<dd>"+e[1]+"</dd>\n").join(""),t+="\n</dl>\n"):(t+="\n<ul>\n",t+=e.map(e=>"\n<li>"+e+"</li>\n").join(""),t+="\n</ul>\n"),t}(e.children.map(e=>{let n;return n="number"==typeof e?d(e):e,x(b(n),k(n)+r.symbolSuffix)}))+"\n</div>\n",n}).join("\n"))}function $(e,n){var t;return null===(t=null==e?void 0:e.flags)||void 0===t?void 0:t[n]}function S(e,n){var t;if(null===(t=null==e?void 0:e.comment)||void 0===t?void 0:t.tags){const t=e.comment.tags.filter(e=>e.tag===n);if(console.assert(t.length<=1),1===t.length)return t[0].text||""}return""}function U(e,n){var t;return(null===(t=null==e?void 0:e.comment)||void 0===t?void 0:t.tags)&&e.comment.tags.filter(e=>e.tag===n).length>0}function A(e){var n;if(e.signatures&&!e.comment)return A(e.signatures[0]);let t=S(e,"keywords");!t&&U(e,"keyword")&&(console.warn('The tag for keywords is "@keywords", not "@keyword" ',T(e)),t=S(e,"keyword"));let r=(null!=t?t:"").split(",");if(r.push(null!==(n={2:"namespace",4:"enum",32:"variable",16:"",64:"function",128:"class",256:"interface",1024:"",2048:"",4096:"function",262144:"instance",4194304:"type"}[e.kind])&&void 0!==n?n:""),r.push(k(e)),U(e,"category")){const n=S(e,"category").split(" ").map(e=>e.toLowerCase().trim());r=[...r,...n]}return r=[].concat(...r.map(e=>{var n;return(null===(n=_.keywordSynonyms)||void 0===n?void 0:n[e])?[e,..._.keywordSynonyms[e]]:[e]})),r=r.filter(e=>!!e).map(e=>e.trim().toLowerCase()),[...new Set(r)]}function I(e,n="block"){if(!e)return"";let t="";e.flags&&(e.flags.isAbstract&&(t+=i("abstract","modifier-tag")),e.flags.isPrivate&&(t+=i("private","modifier-tag")),e.flags.isProtected&&(t+=i("protected","modifier-tag")),e.flags.isPublic&&(t+=i("public","modifier-tag")),e.flags.isExternal&&(t+=i("external","modifier-tag")),e.flags.isStatic&&(t+=i("static","modifier-tag")));const r={eventproperty:"",override:"",readonly:"",sealed:"",virtual:"",deprecated:"red modifier-tag",beta:"orange modifier-tag",alpha:"orange modifier-tag",experimental:"orange modifier-tag"},a={eventproperty:"event",readonly:"read only"};return t+=Object.keys(r).map(n=>U(e,n)?i(a[n]||n,r[n]||"modifier-tag"):"").join(""),t?"block"===n?o(t,"flags"):i(t,"flags"):""}function E(e){return e.replace(/([^\\])'/g,"$1\\'")}function R(e){return e.replace(/(^")|("$)/g,"")}function N(e){return e.replace(/(\n+)$/g,"")}function T(e){var n;return e&&0!==e.kind?128===e.kind&&$(e,"isAbstract")?l("abstract class ")+"<strong>"+k(e)+"</strong>":2===e.kind&&/^"(.*)"$/.test(e.name)?l("module ")+'<strong>"'+R(e.name).replace(/\.d$/,"")+'"</strong>':1===e.kind?l("module ")+'<strong>"'+k(e)+'"</strong>':l(null!==(n={256:"interface ",128:"class ",4:"enum ",2:"namespace ",1:"module "}[e.kind])&&void 0!==n?n:"")+"<strong>"+k(e)+"</strong>":""}function C(e,n){if(/^http[s]?:\/\//.test(n))return n;f(n,e)||console.warn('Unresolved link in "'+e.name+'": ',n);let t="";const r=n.split("#");r.length>1&&(t=r[0],n=r.slice(1).join(""));const i=n.split(".");let o=G;return i.forEach(e=>{o=f(e,o)}),o?t+"#"+encodeURIComponent(b(o).anchor):t+"#"+i.join(".")}function P(e){return _.tutorialPath?_.tutorialPath.endsWith("/")?_.tutorialPath+e:_.tutorialPath+"/"+e:e}function O(e,n){return(n=(n=(n=(n=(n=(n=(n=(n=(n=(n=n.replace(/{@tutorial\s+(\S+?)[ \|]+(.+?)}/g,(e,n,t)=>`<a href="${P(n)}">${t}</a>`)).replace(/{@tutorial\s+(\S+?)}/g,(e,n)=>`<a href="${P(n)}">${n}</a>`)).replace(/{@linkcode\s+(\S+?)\s*\|\s*(.+?)}/g,(n,t,r)=>`<a href="${C(e,t)}"><code>${r}</code></a>`)).replace(/{@linkcode\s+(\S+?)}/g,(n,t)=>`<a href="${C(e,t)}"><code>${t}</code></a>`)).replace(/\[\[\`(\S+?)\`\s*\|\s*(.+?)\]\]/g,(n,t)=>`<a href="${C(e,t)}"><code>${t}</code></a>`)).replace(/\[\[\`(\S+?)\`\]\]/g,(n,t)=>`<a href="${C(e,t)}"><code>${t}</code></a>`)).replace(/{@(?:link|linkplain)\s+(\S+?)\s*\|\s*(.+?)}/g,(n,t,r)=>`<a href="${C(e,t)}">${r}</a>`)).replace(/{@(?:link|linkplain)\s+(\S+?)}/g,(n,t)=>`<a href="${C(e,t)}">${t}</a>`)).replace(/\[\[(\S+?)\s*\|\s*(.+?)\]\]/g,(n,t,r)=>`<a href="${C(e,t)}">${r}</a>`)).replace(/\[\[(\S+?)\]\]/g,(n,t)=>`<a href="${C(e,t)}">${t}</a>`)).replace(/({@(?:inheritDoc)\s+(\S+?)})/gi,(n,t,r)=>{t.startsWith("{@inheritDoc")||console.warn("Check capitalization of @inheritDoc",t);const i=f(r,e);return i?q(i,"block-inherit"):(console.warn('Unresolved link in "'+e.name+'": ',t),t)})}function M(e,n){const t=n.split("\n"),i=[];let a=!1,l=!1,s=[],c="";return t.forEach(e=>{if(a)e.match(/^\s*$/i)?(s.length>0&&i.push({type:c,content:s.join("\n")}),a=!1,c="",s=[]):s.push(e);else if(l)/^[ ]{0,3}(\*\*\*|---)/.test(e)?(s.length>0&&i.push({type:c,content:s.join("\n")}),l=!1,c="",s=[]):s.push(e);else{let n=e.match(/\n*\*\*\(([^]+)\):?\s*\*\*\s*:?\s*([^]+)/i);n?(s.length>0&&i.push({type:c,content:s.join("\n")}),a=!0,c=n[1],s=[n[2]]):(n=e.match(/\n*\*\*\(([^]+)\):?\s*\*\*\s*:?\s*$/i),n?(s.length>0&&i.push({type:c,content:s.join("\n")}),l=!0,c=n[1],s=[]):s.push(e))}}),s.length>0&&i.push({type:c,content:s.join("\n")}),i.map(n=>{if(n.type){const t={danger:"danger",warning:"warning",caution:"warning"}[n.type.toLowerCase()]||"info";return o("<h4>"+n.type+"</h4>\n"+r.render(O(e,n.content)),"notice--"+t)}return r.render(O(e,n.content))}).join("\n")}function B(e,t){if(!e)return"";if(e.signatures&&!e.comment)return B(e.signatures[0],t);if(!e.comment)return"";let i="";e.comment.shortText&&(i+=M(e,e.comment.shortText)+"\n"),e.comment.text&&(i+=M(e,e.comment.text)+"\n");const o=S(e,"remarks");return o&&(i+=M(e,o)+"\n"),"block-inherit"!==t&&e.comment.tags&&e.comment.tags.length>0&&(i+="\n"+e.comment.tags.map(t=>function(e,t,i){if(!t||!i)return"";let o="";switch(i=N(i.trim())||"",t){case"method":o+="<strong>Method:</strong> "+r.render(O(e,i));break;case"module":o+="<strong>Module:</strong> "+r.render(O(e,i));break;case"function":o+="<strong>Function:</strong> "+r.render(O(e,i));break;case"example":o+="\n<pre><code>"+n.highlight("typescript",i).value+"</code></pre>\n";break;case"typedef":case"type":case"property":case"param":case"returns":case"privateremarks":case"packageDocumentation":case"category":case"global":case"keywords":case"command":break;default:if(i){const n={eventproperty:"info",override:"info",public:"info",readonly:"info",sealed:"info",virtual:"info",alpha:"warning",beta:"warning",experimental:"warning",deprecated:"danger",internal:"danger"}[t]||"info";o+=s("<h4>"+({eventproperty:"event"}[t]||t)+"</h4>\n\n"+r.render(O(e,i)),{className:"notice--"+n})}else/alpha|beta|deprecated|eventproperty|experimental|internal|override|public|readonly|sealed|virtual/i.test(t)||(o+="<strong>"+t+"</strong>")}return o}(e,t.tag,t.text)).filter(e=>!!e).join("\n\n")+"\n"),i}function F(e){return e?1===e.kind?R(e.name).replace(/\.d$/,""):F(g(e)):""}function D(e){return U(e,"hidden")||U(e,"ignore")||U(e,"internal")}function L(e,n,t){const r=g(e);n||(n=`<strong>${k(e)}</strong>`,4!==e.kind&&32!==e.kind&&64!==e.kind&&128!==e.kind&&256!==e.kind&&1024!==e.kind&&2048!==e.kind||r&&(2===r.kind&&!/^"(.*)"$/.test(r.name)||128===r.kind||256===r.kind)&&(n=k(r)+a(".")+n),64===e.kind&&(n+=a("()")));const i=b(e);return console.assert(!i.document),s(c(3,T(r),n,i,{deprecated:U(e,"deprecated")})+t,{permalink:i,className:"card",keywords:A(e).join(", ")})}function W(e){if(D(e))return"";const n=V(e);if(n)return n;const t=g(e);let r="",i="";return 512===e.kind?(r=`${l("new ")}<strong>${t.name}</strong>`,i=r):i=`<strong>${e.name}</strong>`,L(e,r,B(e,"block")+o(e.signatures.map(e=>{let n=I(e);return n+=o(i+q(e,"inline"),"code"),n+=q(e,"block"),o(n)}).join("\n<hr>\n")))}function V(e){const n=g(e),t=(S(e,"command")||S(n,"command")).trim();if(!t)return"";let r;if(1024===e.kind){if(!e.type.declaration)return"";r=e.type.declaration.signatures[0]}else{if(2048!==e.kind)return"";r=e.signatures[0]}const l=[...r.parameters];let s=t+a("(");return l.shift(),l.length>0?(s+=a("["),s+=i('"'+e.name+'"',"string-literal"),s+=a(", "),s+=l.map(e=>q(e)).join(a(", ")),s+=a("]")):s+=i('"'+e.name+'"',"string-literal"),s+=a(")"),r.type&&(s+=a(": "),s+=q(r.type)),(l.length>0||r.type)&&(s+="\n<dl>\n",l.length>0&&(s+="\n<dt>\n"+l.map(e=>{let n="<strong><var>"+e.name+"</var></strong>";const t=q(e.type,"block");return t&&(n+=a(": ")+t),n+="\n</dt><dd>\n",n+=B(e,"block"),n}).join("\n</dd><dt>\n"),s+="\n</dd>\n"),r.type&&U(e,"returns")&&(s+="\n<dt>\n",s+="<strong>→ </strong>"+q(r.type),s+="\n</dt><dd>\n",U(e,"returns")&&(s+=M(e,S(e,"returns"))),s+="\n</dd>\n"),s+="\n</dl>\n"),s=o(s,"code"),L(e,i("command","modifier-tag")+"<strong>&#8203;"+e.name+"</strong>",s+B(e,"block"))}function z(e){if(!e.groups)return"";const n=function(e){return e.sort((e,n)=>(console.assert(v[n.kind]&&v[e.kind]),v[e.kind]===v[n.kind]?0:v[e.kind]<v[n.kind]?-1:1))}(e.groups);return B(e,"section")+n.map(n=>function(e,n){const t=function(e,n){var t;let r=[];const i=null===(t=e.groups)||void 0===t?void 0:t.filter(e=>0!=(e.kind&n));return i&&1===i.length?(i[0].categories?(r=i[0].categories.map(n=>({title:n.title,children:h(e,n.children)})),r=y(r)):(console.assert("number"==typeof i[0].children[0]),r=[{title:"",children:h(e,i[0].children)}]),r):e.categories?y(e.categories):[{title:"",children:e.children.filter(e=>0!=(e.kind&n))}]}(e,n.kind);if(0===t.length)return"";let r="";512!==n.kind&&262144!==n.kind&&4!==n.kind&&(1024!==n.kind&&2048!==n.kind||!U(e,"command")?0==(390&n.kind)&&n.children.length>1&&(r+=w(e,{1:"Modules",2:"Namespaces",4:"Enums",32:"Variables",64:"Functions",128:"Classes",245:"Interfaces",4194304:"Types"}[n.kind],t)):r+=w(e,"",t));const i=t.map(e=>{let n="";return e.title&&(n=c(3,"",e.title,null,{className:"category-title"})),n+=e.children.map(e=>q(e,"section")).join(""),n}).join("");return i?s(r+i):""}(e,n)).filter(e=>!!e).join("\n\n")}function q(e,n="inline"){var t,r,p,m;if(void 0===e)return"";if("number"==typeof e&&(e=d(e)),"string"==typeof e&&(e=u(e)),"section"===n&&e.groups){if(128===e.kind||256===e.kind)return function(e){if(D(e)||!e.children)return"";if(1===e.groups.length&&0!=(3072&e.groups[0].kind)&&!U(e,"command"))return q(e,"card");const n=b(e),t=c(2,T(g(e)),T(e),n,{deprecated:U(e,"deprecated")})+I(e);let r="";return e.extendedTypes&&(r+="<p>"+i("Extends:","tag-name")+e.extendedTypes.map(e=>q(e)).filter(e=>!!e).join(", ")+"</p>"),e.implementedTypes&&(r+="<p>"+i("Implements:","tag-name")+e.implementedTypes.map(e=>q(e)).filter(e=>!!e).join(", ")+"</p>"),e.extendedBy&&(r+="<p>"+i("Extended by:","tag-name")+e.extendedBy.map(e=>q(e)).filter(e=>!!e).join(", ")+"</p>"),e.implementedBy&&(r+="<p>"+i("Implemented by:","tag-name")+e.implementedBy.map(e=>q(e)).filter(e=>!!e).join(", ")+"</p>"),s(t+o(r)+z(e),{permalink:n})}(e);if(4===e.kind)return function(e){if(D(e))return"";let n=B(e,"block"),t="";return e.children&&(n&&(n+="\n<hr>"),t+="\n<dl>",t+=e.children.map(e=>q(e,"block")).join(""),t+="</dl>"),L(e,"",n+t)}(e);if(1===e.kind){const n=b(e);return s(c(2,"",T(e),n)+z(e),{permalink:n})}return z(e)}const f=g(e);if(void 0===e.kind){if("abstract"===e.type&&console.error("Unexpected node type ",e.type),"array"===e.type)return q(e.elementType,"inline")+a("[]");if("conditionals"===e.type&&console.error("Unexpected node type ",e.type),"index"===e.type&&console.error("Unexpected node type ",e.type),"indexedAccess"===e.type)return q(e.objectType)+a("[")+q(e.indexType)+a("]");if("inferred"===e.type&&console.error("Unexpected node type ",e.type),"intersection"===e.type)return"block"===n?'<ul class="type-block"><li>'+e.types.map(e=>q(e)).filter(e=>!!e).join(a(" &amp; ")+"</li>\n<li>")+"</li></ul>":e.types.map(e=>q(e)).filter(e=>!!e).join(a(" &amp; "));if("intrinsic"===e.type)return l(e.name);if("predicate"===e.type&&console.error("Unexpected node type ",e.type),"reference"===e.type){let n,t="";return e.typeArguments&&(t=a("&lt;")+e.typeArguments.map(e=>q(e)).join(a(", "))+a("&gt;")),void 0!==e.id&&(n=d(e.id)),n||(n=u(e.name,f,4194692)),n?x(b(n),16===n.kind?f.name+"."+e.name:e.name)+t:(n=u(e.name,void 0,4194692),n?x(b(n),e.name)+t:n?e.name+t:["Object","Function","Boolean","Symbol","String","RegExp","Object","Number","BigInt","Math","Date","Infinity","NaN","globalThis","Error","AggregateError","InternalError","RangeError","ReferenceError","SyntaxError","TypeError","URIError","Array","Int8Array","Uint8Array","Uint8Array","Uint8ClampedArray","Int16Array","Uint16Array","Int32Array","Uint32Array","Float32Array","Float64Array","BigInt64Array","BigUint64Array","Map","Set","WeakMap","WeakSet","ArrayBuffer","SharedArrayBuffer","Atomics","DataView","JSON","Promise","Generator","GeneratorFunction","AsyncFunction","Iterator","AsyncIterator","Reflect","Proxy","Intl","WebAssembly"].includes(e.name)?'<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/'+e.name+'" class="externallink">'+e.name+'<svg><use xlink:href="#external-link"></use></svg></a>'+t:'<a href="https://developer.mozilla.org/Web/API/'+e.name+'" class="externallink">'+e.name+'<svg><use xlink:href="#external-link"></use></svg></a>'+t)}if("reflection"===e.type)return q(e.declaration,n);if("stringLiteral"===e.type)return i('"'+e.value+'"',"string-literal");if("tuple"===e.type)return a("[")+e.elements.map(e=>q(e)).filter(e=>!!e).join(a(", "))+a("]");if("typeOperator"===e.type)return l(e.operator+" ")+q(e.target);if("typeParameter"===e.type){let n=x(b(e));return e.constraint&&(n+=l(" extends "),n+=q(e.constraint)),n}if("union"===e.type)return"block"!==n||e.types.every(e=>"stringLiteral"===e.type)?e.types.map(e=>q(e)).join(a(" | ")):'<ul class="type-block"><li>'+a("| ")+e.types.map(e=>q(e)).join("</li>\n<li>"+a("| "))+"</li></ul>";if("unknown"===e.type)return"";if("void"===e.type)return l("void")}let h="";switch(e.kind){case 0:case 1:case 2:case 4:console.assert("Unexpected node kind ",Number(e.kind).toString());break;case 16:h=`<dt id="${encodeURIComponent(b(e).anchor)}">`,h+="<strong>"+e.name+"</strong>","string"==typeof e.defaultValue&&(h+=a(" = ")+e.defaultValue),h+="</dt><dd>",h+=I(e),h+=B(e,n),h+="</dd>";break;case 32:"card"===n||"section"===n?h=L(e,"",o(q(e,"block"))+B(e,"block")):(h+="<strong>"+e.name+"</strong>",$(e,"isOptional")&&(h+=i("?","modifier")),"unknown"===(null===(t=e.type)||void 0===t?void 0:t.type)&&(h+=a(" = "),h+=e.type.name||""),"unknown"!==(null===(r=e.type)||void 0===r?void 0:r.type)&&(h+=a(": "),h+=q(e.type)));break;case 64:"card"===n||"section"===n?h=W(e):console.warn("Unexpected style, kind ",e.kind);break;case 128:case 256:h="card"===n||"section"===n?function(e){if(D(e)||!e.children)return"";let n=B(e,"block");n&&(n+="\n<hr>\n");let t="";return e.children&&(t='<dl><dt id="'+e.children.map(e=>{const n=b(e);let t=encodeURIComponent(n.anchor)+'">';return 2048===e.kind?t+=e.signatures.map(t=>{let r=I(e,"inline")+"<strong>"+e.name+"</strong>";return $(e,"isOptional")&&(r+=i("?","modifier")),r+=j(n)+q(t)+"</dt><dd>"+B(t,"block"),r}).join("</dd><dt>")+"</dd>":1024===e.kind?(t+="<strong>"+e.name+"</strong>",$(e,"isOptional")&&(t+=i("?","modifier")),t+=a(": ")+q(e.type)+j(n)+"</dt><dd>"+B(e,"block")):console.error('Unexpected item in a "short" class/interface'),t}).join('\n</dd><dt id="'),t+="\n</dd></dl>\n"),L(e,T(e),n+t)}(e):e.name;break;case 512:"card"===n||"section"===n?h=W(e):console.warn("Unexpected style, kind ",e.kind);break;case 1024:h="card"===n||"section"===n?function(e){if(D(e))return"";const n=V(e);if(n)return n;const t=g(e);let r="",i="";return t&&0!=(391&t.kind)&&(i=`<strong>${e.name}</strong>`,r=t.name+"."+i),L(e,r,q(e.type,"block")+B(e,"block"))}(e):(f?f.name+".":"")+e.name+a(": ")+q(e.type,n);break;case 2048:"card"===n||"section"===n?h=W(e):console.error("Function Signature style not supported");break;case 4096:case 16384:"inline"===n?(h=a("("),e.parameters&&(h+=e.parameters.map(e=>q(e)).join(a(", "))),h+=a(")"),h+=a(": ")+q(e.type)):"block"===n?(e.parameters||e.type)&&(h+="\n<dl>\n",e.parameters&&(h+="\n<dt>\n"+e.parameters.map(e=>{let t="<strong><var>"+e.name+"</var></strong>";const r=q(e.type,"block");return r&&(t+=a(": ")+r),t+="\n</dt><dd>\n",t+=B(e,n),t}).join("\n</dd><dt>\n"),h+="\n</dd>\n"),!e.type||!(null===(p=e.comment)||void 0===p?void 0:p.returns)&&function(e){return"void"===e.type||"intrinsic"===e.type&&"void"===e.name}(e.type)||(h+="\n<dt>\n",h+="<strong>→ </strong>"+q(e.type),h+="\n</dt><dd>\n",(null===(m=e.comment)||void 0===m?void 0:m.returns)&&(h+=M(e,e.comment.returns)),h+="\n</dd>\n"),h+="\n</dl>\n"):console.error("Call signature style not supported");break;case 8192:h+=a("[")+e.parameters.map(e=>q(e)).join(a(", "))+a("]"),h+=a(": ")+q(e.type);break;case 32768:$(e,"isRest")&&(h+=i("...","modifier")),h+=`<var>${e.name}</var>`,$(e,"isOptional")&&(h+=i("?","modifier")),h+=a(": ")+q(e.type);break;case 65536:e.signatures?h+=e.signatures.map(e=>q(e)).join(a("; ")):(e.children||e.indexSignature)&&("block"===n||"block-inherit"===n?(h+="<div><dl>",e.children&&(h+="<dt>"+e.children.map(e=>{let t=q(e)+a(";");return U(e,"deprecated")&&(t=i(t,"deprecated")),t+"</dt><dd>"+(I(e)+B(e,n))}).join("</dd><dt>"),h+="</dd>"),e.indexSignature&&(h+="<dt>",h+=e.indexSignature.map(e=>q(e)).join(a(";")+"</dt><dd>"),h+="</dd>"),h+="</dl></div>"):"inline"===n?(h+=a("{"),e.children&&(h+=e.children.map(e=>q(e)).join(a("; "))),e.indexSignature&&(h+=e.indexSignature.map(e=>q(e)).join(a("; "))),h+=a("}")):console.error("Unexpected style for Type Literal"));break;case 131072:h+=e.name,e.type&&(h+=l(" extends "),h+=q(e.type));break;case 524288:case 1048576:console.warn("Unexpected kind ",e.kind);break;case 262144:"card"===n||"section"===n?h=function(e){if(D(e))return"";let n="";n=e.getSignature&&e.setSignature?l("get/set ")+`<strong>${e.name}</strong>`:e.getSignature?l("get ")+`<strong>${e.name}</strong>`:l("set ")+`<strong>${e.name}</strong>`;const t=e.getSignature?e.getSignature[0]:e.setSignature[0];let r=e.name+a(": ")+q(t.type,"inline");return e.getSignature&&!e.setSignature?r+=i("read only","modifier-tag"):!e.getSignature&&e.setSignature&&(r+=i("write only","modifier-tag")),r+=q(t,"block"),L(e,n,o(r)+B(e,"block"))}(e):console.warn("Unexpected style, kind ",e.kind);break;case 2097152:console.warn("Unexpected style, kind ",e.kind);break;case 4194304:if("card"===n||"section"===n)h=function(e){if(D(e))return"";let n=B(e,"block");const t=q(e,"block");return t&&(n&&(n+="\n<hr>\n"),n+=o(t,"code")),L(e,"",n)}(e);else{const t=q(e.type,n);h="",e.typeParameter&&(h+=a("&lt;"),h+=e.typeParameter.map(e=>q(e)).join(a(", ")),h+=a("&gt;"),t&&(h+=a(" = "))),h+=t}break;case 8388608:console.warn("Unexpected style, kind ",e.kind);break;default:console.warn("Unexpected kind ",e.kind)}return h}let G,_;exports.grok=function(n,r){var i,o,a,l;try{_=r,G=function(n,r){var i;let o={};const a=new e.Application;a.options.addReader(new e.TSConfigReader),a.options.addReader(new e.TypeDocReader),a.bootstrap({logger:(e,n,t)=>console.log(e),mode:"modules",target:"es2017",module:"ESNext",experimentalDecorators:!0,moduleResolution:"node",noEmit:"true",stripInternal:!1,includeDeclarations:!0,excludeExternals:!0}),n=a.expandInputFiles(n.map(e=>t.resolve(t.normalize(e))));const l=a.converter.convert(n);if(null===(i=l.errors)||void 0===i?void 0:i.length){if(a.logger.diagnostics(l.errors),!r.ignoreErrors)return;a.logger.resetErrors()}return l.project&&(o=a.serializer.projectToObject(l.project)),o}(n,r);const c=null!==(i=r.sdkName)&&void 0!==i?i:"",d=null!==(a=null!==(o=r.sdkName)&&void 0!==o?o:G.name)&&void 0!==a?a:"";let p;if(r.modules){const e=r.modules.map(e=>u(e,G,1)).filter(e=>!!e);0===e.length?console.warn("Modules not found: ",r.modules.join(", ")):e.length!==r.modules.length&&console.warn("Some modules not found: ",r.modules.map(e=>u(e,G,1)).filter(e=>null===e).join(", ")),p=w(G,"Modules",[{title:"",children:e}]),p+=e.map(e=>q(e,"section")).join(""),p=s(p)}if(p||(p=q(G,"section")),p){const e=function(e,n){return"string"==typeof e?(Object.keys(n).forEach(t=>{"string"==typeof n[t]&&(e=e.replace(new RegExp("{{"+t+"}}","g"),n[t]))}),e):"function"==typeof e?e(n):""}(r.documentTemplate,{packageName:E(d),sdkName:E(N(c)),cssVariables:r.cssVariables,content:p});return{[null!==(l=null==r?void 0:r.outFile)&&void 0!==l?l:"index.html"]:e}}}catch(e){console.error(e)}return{}};
+'use strict';
+
+Object.defineProperty(exports, '__esModule', { value: true });
+
+const TypeDoc = require('typedoc');
+const highlightJs = require('highlight.js');
+const path = require('path');
+const MarkdownIt = require('markdown-it');
+const markdown = new MarkdownIt({
+    html: true,
+    typographer: true,
+    highlight: function (str, lang) {
+        if ((lang !== null && lang !== void 0 ? lang : 'typescript') && highlightJs.getLanguage(lang)) {
+            try {
+                return highlightJs.highlight(lang, str).value;
+            }
+            catch (err) {
+                console.log(err);
+            }
+        }
+        return '';
+    },
+});
+function span(value, className) {
+    if (!className)
+        return '<span>' + value + '</span>';
+    return '<span class="' + className + '">' + value + '</span>';
+}
+function div(content, className) {
+    if (className) {
+        return '\n<div class="' + className + '">' + content + '</div>\n';
+    }
+    return '\n<div>' + content + '</div>\n';
+}
+function punct(value) {
+    return '<span class="punctuation">' + value + '</span>';
+}
+function keyword(k) {
+    return '<span class="keyword">' + k + '</span>';
+}
+function section(content, options) {
+    var _a;
+    let result = '<section';
+    if (options === null || options === void 0 ? void 0 : options.keywords) {
+        result += ' data-keywords="' + options.keywords.toLowerCase() + '"';
+    }
+    if ((_a = options === null || options === void 0 ? void 0 : options.permalink) === null || _a === void 0 ? void 0 : _a.anchor) {
+        result += ' id="' + encodeURIComponent(options.permalink.anchor) + '"';
+    }
+    if (options === null || options === void 0 ? void 0 : options.className) {
+        result += ' class="' + options.className + '"';
+    }
+    result += '>' + content;
+    return result + '\n</section>\n';
+}
+function list(items, className) {
+    if (!items || items.length === 0)
+        return '';
+    let result = '';
+    if (Array.isArray(items[0])) {
+        const definitions = items;
+        if (className) {
+            result += '\n<dl class="' + className + '">\n';
+        }
+        else {
+            result += '\n<dl>\n';
+        }
+        result += definitions
+            .map((def) => '\n<dt>' + def[0] + '</dt>\n<dd>' + def[1] + '</dd>\n')
+            .join('');
+        result += '\n</dl>\n';
+    }
+    else {
+        if (className) {
+            result += '\n<ul class="' + className + '">\n';
+        }
+        else {
+            result += '\n<ul>\n';
+        }
+        result += items.map((item) => '\n<li>' + item + '</li>\n').join('');
+        result += '\n</ul>\n';
+    }
+    return result;
+}
+function highlightingMark(content) {
+    return span(content +
+        '<svg class="highlighting-mark"><use xlink:href="#highlighting-mark-' +
+        (Math.floor(3 * Math.random()) + 1) +
+        '"></use></svg>', 'highlighting-mark-container');
+}
+function heading(level, subhead, head, permalink, options) {
+    const tag = 'h' + Number(level).toString();
+    let body = subhead ? span(subhead, 'subhead') : '';
+    if (permalink === null || permalink === void 0 ? void 0 : permalink.anchor) {
+        body += highlightingMark(span(head, (options === null || options === void 0 ? void 0 : options.deprecated) ? 'head deprecated' : 'head'));
+        body = span(body, 'stack');
+        body += renderPermalinkAnchor(permalink);
+    }
+    else {
+        body += span(head, (options === null || options === void 0 ? void 0 : options.deprecated) ? 'head deprecated' : 'head');
+        body = span(body, 'stack');
+    }
+    return ('<' +
+        tag +
+        ((options === null || options === void 0 ? void 0 : options.className) ? ' class="' + options.className + '"' : '') +
+        '>' +
+        body +
+        '</' +
+        tag +
+        '>');
+}
+function getReflectionByID(id, root = gNodes) {
+    var _a, _b;
+    if (root.type !== 'reference' && root.id === id)
+        return root;
+    let result;
+    if ((_b = (_a = root.children) === null || _a === void 0 ? void 0 : _a.some((x) => {
+        result = getReflectionByID(id, x);
+        return result !== null;
+    })) !== null && _b !== void 0 ? _b : false) {
+        return result;
+    }
+    return null;
+}
+function getReflectionsByName(name, root) {
+    if (!root)
+        root = gNodes;
+    let result = [];
+    if (getName(root) === name)
+        result.push(root);
+    if (root.children) {
+        root.children.forEach((x) => {
+            result = [...result, ...getReflectionsByName(name, x)];
+        });
+    }
+    return result;
+}
+function getReflectionByName(name, root, kind) {
+    let candidates = [];
+    candidates = getReflectionsByName(name, root);
+    if (candidates.length > 0) {
+        candidates.sort((a, b) => b.kind - a.kind);
+        if (typeof kind === 'number') {
+            candidates = candidates.filter((x) => (x.kind & kind) !== 0);
+        }
+        else if (kind === 'static') {
+            candidates = candidates.filter((x) => x.kind === 2048 && hasFlag(x, 'isStatic'));
+        }
+        else if (typeof kind === 'string') {
+            const numKind = NUMERIC_KIND[kind];
+            candidates = candidates.filter((x) => (x.kind & numKind) !== 0);
+        }
+        if (candidates.length > 0) {
+            return candidates[0];
+        }
+    }
+    return null;
+}
+const NUMERIC_KIND = {
+    namespace: 2,
+    enum: 4,
+    variable: 32,
+    function: 64,
+    class: 128,
+    interface: 256,
+    instance: 1024 | 2048 | 262144,
+    static: 1024 | 2048,
+    type: 4194304,
+};
+function getNameSelector(segment) {
+    const m = segment.match(/^\(([^\:]+)(\:([^\)]+))?\)$/);
+    if (m) {
+        return [m[1], m[3]];
+    }
+    return [segment, undefined];
+}
+function getReflectionByLink(link, root) {
+    const segments = link.split('.');
+    if (segments.length === 1) {
+        const [name, kind] = getNameSelector(segments[0]);
+        return (getReflectionByName(name, root, kind) ||
+            getReflectionByName(name, getParent(root), kind) ||
+            getReflectionByName(name, null, kind));
+    }
+    const lastSegment = segments.pop();
+    let node = null;
+    for (const segment of segments) {
+        const [name, kind] = getNameSelector(segment);
+        node = getReflectionByName(name, node, kind);
+    }
+    return getReflectionByLink(lastSegment, node);
+}
+function getAncestors(node, root = gNodes) {
+    if (!node)
+        return null;
+    if (node.id === root.id)
+        return [root];
+    if (root.children) {
+        for (const child of root.children) {
+            const ancestors = getAncestors(node, child);
+            if (ancestors) {
+                return [...ancestors, root];
+            }
+        }
+    }
+    return null;
+}
+function getParent(node) {
+    const ancestors = getAncestors(node);
+    if (ancestors)
+        return ancestors[1];
+    return null;
+}
+function getChildrenByID(node, children) {
+    return children.map((x) => node.children.filter((child) => child.id === x)[0]);
+}
+function getName(node) {
+    if (node.kind === 1) {
+        return getModuleName(node);
+    }
+    return node.name;
+}
+function everyStringLiteral(nodes) {
+    return nodes.every((x) => x.type === 'stringLiteral');
+}
+function sortOtherCategoryAtEnd(categories) {
+    return categories.sort((a, b) => {
+        if (a.title === b.title)
+            return 0;
+        if (a.title === 'Other')
+            return 1;
+        if (b.title === 'Other')
+            return -1;
+        return a.title < b.title ? -1 : 1;
+    });
+}
+const KIND_ORDER = {
+    512: 1,
+    64: 2,
+    2048: 3,
+    262144: 4,
+    1024: 5,
+    32: 6,
+    256: 7,
+    128: 8,
+    4194304: 9,
+    4: 10,
+};
+function sortGroups(groups) {
+    return groups.sort((a, b) => {
+        console.assert(KIND_ORDER[b.kind] && KIND_ORDER[a.kind]);
+        return KIND_ORDER[a.kind] === KIND_ORDER[b.kind]
+            ? 0
+            : KIND_ORDER[a.kind] < KIND_ORDER[b.kind]
+                ? -1
+                : +1;
+    });
+}
+function getCategories(node, kind) {
+    var _a;
+    let result = [];
+    const children = (_a = node.groups) === null || _a === void 0 ? void 0 : _a.filter((x) => (x.kind & kind) !== 0);
+    if (!children || children.length !== 1) {
+        if (node.categories) {
+            return sortOtherCategoryAtEnd(node.categories);
+        }
+        return [
+            {
+                title: '',
+                children: node.children.filter((x) => (x.kind & kind) !== 0),
+            },
+        ];
+    }
+    if (children[0].categories) {
+        result = children[0].categories.map((category) => {
+            return {
+                title: category.title,
+                children: getChildrenByID(node, category.children),
+            };
+        });
+        result = sortOtherCategoryAtEnd(result);
+    }
+    else {
+        console.assert(typeof children[0].children[0] === 'number');
+        result = [
+            {
+                title: '',
+                children: getChildrenByID(node, children[0].children),
+            },
+        ];
+    }
+    return result;
+}
+function makePermalink(node) {
+    var _a;
+    node = getReflectionByID(node.id);
+    if (!node || node.kind === 0) {
+        return null;
+    }
+    const parent = getParent(node);
+    if (!parent) {
+        return { anchor: '', title: (_a = node.name) !== null && _a !== void 0 ? _a : '' };
+    }
+    let result;
+    if (node.kind === 512) {
+        const grandparentPermalink = makePermalink(getParent(parent));
+        if (grandparentPermalink) {
+            result = {
+                anchor: (grandparentPermalink.anchor
+                    ? grandparentPermalink.anchor + '.'
+                    : '') +
+                    parent.name +
+                    ':constructor',
+                title: 'new ' + parent.name + '()',
+            };
+        }
+        else {
+            result = {
+                anchor: parent.name + ':constructor',
+                title: 'new ' + parent.name + '()',
+            };
+        }
+    }
+    else {
+        const qualifiedSymbol = getQualifiedSymbol(parent, node);
+        const parentPermalink = makePermalink(parent);
+        const nodeName = getName(node);
+        result = parentPermalink
+            ? {
+                anchor: (parentPermalink.anchor
+                    ? parentPermalink.anchor + '.'
+                    : '') + qualifiedSymbol,
+                title: parentPermalink.title + '.' + nodeName,
+            }
+            : {
+                anchor: qualifiedSymbol,
+                title: nodeName,
+            };
+        if (parent.kind === 1 ||
+            (parent.kind === 2 && /^"(.*)"$/.test(parent.name))) {
+            result.title = nodeName;
+        }
+    }
+    if (shouldIgnore(node)) {
+        result.anchor = '';
+    }
+    return result;
+}
+function renderPermalink(permalink, title) {
+    if (!permalink)
+        return '';
+    title = title !== null && title !== void 0 ? title : permalink.title;
+    if (permalink.document && permalink.anchor) {
+        return `<a href="${permalink.document}#${encodeURIComponent(permalink.anchor)}">${title}</a>`;
+    }
+    else if (permalink.document) {
+        return `<a href="${permalink.document}}">${title}</a>`;
+    }
+    else if (permalink.anchor) {
+        return `<a href="#${encodeURIComponent(permalink.anchor)}">${title}</a>`;
+    }
+    return title;
+}
+function renderPermalinkAnchor(permalink) {
+    console.assert(!permalink.document);
+    return ('<a class="permalink" href="#' +
+        encodeURIComponent(permalink.anchor) +
+        '" title="Permalink"><span class="sr-only"> Permalink </span>' +
+        '<svg><use xlink:href="#link"></use></svg>' +
+        '</a>');
+}
+function renderIndex(node, title, categories, options) {
+    if (!categories || categories.length === 0)
+        return '';
+    let result = '';
+    if (title) {
+        result = heading(3, getQualifiedName(node), title);
+    }
+    if (categories.length === 1 && categories[0].children.length <= 1) {
+        return result;
+    }
+    options = options || { symbolSuffix: '' };
+    return (result +
+        categories
+            .map((category) => {
+            let r = '';
+            if (category.title) {
+                r += `\n\n<h4>${category.title}</h4>\n`;
+            }
+            const items = category.children.map((x) => {
+                let n;
+                if (typeof x === 'number') {
+                    n = getReflectionByID(x);
+                }
+                else {
+                    n = x;
+                }
+                return renderPermalink(makePermalink(n), getName(n) + options.symbolSuffix);
+            });
+            r += '\n<div class="index">' + list(items) + '\n</div>\n';
+            return r;
+        })
+            .join('\n'));
+}
+function hasFlag(node, flag) {
+    var _a;
+    return (_a = node === null || node === void 0 ? void 0 : node.flags) === null || _a === void 0 ? void 0 : _a[flag];
+}
+function getTag(node, tag) {
+    var _a;
+    if ((_a = node === null || node === void 0 ? void 0 : node.comment) === null || _a === void 0 ? void 0 : _a.tags) {
+        const result = node.comment.tags.filter((x) => x.tag === tag);
+        console.assert(result.length <= 1);
+        if (result.length === 1) {
+            return result[0].text || '';
+        }
+    }
+    return '';
+}
+function hasTag(node, tag) {
+    var _a;
+    return (((_a = node === null || node === void 0 ? void 0 : node.comment) === null || _a === void 0 ? void 0 : _a.tags) &&
+        node.comment.tags.filter((x) => x.tag === tag).length > 0);
+}
+function getKeywords(node) {
+    var _a;
+    if (node.signatures && !node.comment) {
+        return getKeywords(node.signatures[0]);
+    }
+    let keywords = getTag(node, 'keywords');
+    if (!keywords && hasTag(node, 'keyword')) {
+        console.warn('The tag for keywords is "@keywords", not "@keyword" ', getQualifiedName(node));
+        keywords = getTag(node, 'keyword');
+    }
+    let result = (keywords !== null && keywords !== void 0 ? keywords : '').split(',');
+    result.push((_a = {
+        2: 'namespace',
+        4: 'enum',
+        32: 'variable',
+        16: '',
+        64: 'function',
+        128: 'class',
+        256: 'interface',
+        1024: '',
+        2048: '',
+        4096: 'function',
+        262144: 'instance',
+        4194304: 'type',
+    }[node.kind]) !== null && _a !== void 0 ? _a : '');
+    result.push(getName(node));
+    if (hasTag(node, 'category')) {
+        const category = getTag(node, 'category')
+            .split(' ')
+            .map((x) => x.toLowerCase().trim());
+        result = [...result, ...category];
+    }
+    result = [].concat(...result.map((word) => {
+        var _a;
+        if ((_a = gOptions.keywordSynonyms) === null || _a === void 0 ? void 0 : _a[word]) {
+            return [word, ...gOptions.keywordSynonyms[word]];
+        }
+        return [word];
+    }));
+    result = result
+        .filter((x) => !!x)
+        .map((x) => x.trim().toLowerCase());
+    return [...new Set(result)];
+}
+function renderFlags(node, style = 'block') {
+    if (!node)
+        return '';
+    let result = '';
+    if (node.flags) {
+        if (node.flags.isAbstract)
+            result += span('abstract', 'modifier-tag');
+        if (node.flags.isPrivate)
+            result += span('private', 'modifier-tag');
+        if (node.flags.isProtected)
+            result += span('protected', 'modifier-tag');
+        if (node.flags.isPublic)
+            result += span('public', 'modifier-tag');
+        if (node.flags.isExternal)
+            result += span('external', 'modifier-tag');
+        if (node.flags.isStatic)
+            result += span('static', 'modifier-tag');
+    }
+    const TAGS = {
+        eventproperty: '',
+        override: '',
+        readonly: '',
+        sealed: '',
+        virtual: '',
+        deprecated: 'red modifier-tag',
+        beta: 'orange modifier-tag',
+        alpha: 'orange modifier-tag',
+        experimental: 'orange modifier-tag',
+    };
+    const TAG_NAME = {
+        eventproperty: 'event',
+        readonly: 'read only',
+    };
+    result += Object.keys(TAGS)
+        .map((x) => hasTag(node, x)
+        ? span(TAG_NAME[x] || x, TAGS[x] || 'modifier-tag')
+        : '')
+        .join('');
+    return result
+        ? style === 'block'
+            ? div(result, 'flags')
+            : span(result, 'flags')
+        : '';
+}
+function renderTag(node, tag, text) {
+    if (!tag || !text)
+        return '';
+    let result = '';
+    text = trimNewline(text.trim()) || '';
+    switch (tag) {
+        case 'method':
+            result +=
+                '<strong>Method:</strong> ' +
+                    markdown.render(renderLinkTags(node, text));
+            break;
+        case 'module':
+            result +=
+                '<strong>Module:</strong> ' +
+                    markdown.render(renderLinkTags(node, text));
+            break;
+        case 'function':
+            result +=
+                '<strong>Function:</strong> ' +
+                    markdown.render(renderLinkTags(node, text));
+            break;
+        case 'example':
+            result +=
+                '\n<pre><code>' +
+                    highlightJs.highlight('typescript', text).value +
+                    '</code></pre>\n';
+            break;
+        case 'typedef':
+        case 'type':
+        case 'property':
+        case 'param':
+        case 'returns':
+            break;
+        case 'privateremarks':
+            break;
+        case 'packageDocumentation':
+            break;
+        case 'category':
+            break;
+        case 'global':
+            break;
+        case 'keywords':
+            break;
+        case 'command':
+            break;
+        case 'keyword':
+            console.warn('Unexpected tag "@keyword" in ' +
+                node.name +
+                '. Did you mean "@keywords"?');
+        default:
+            if (text) {
+                const noticeStyle = {
+                    eventproperty: 'info',
+                    override: 'info',
+                    public: 'info',
+                    readonly: 'info',
+                    sealed: 'info',
+                    virtual: 'info',
+                    alpha: 'warning',
+                    beta: 'warning',
+                    experimental: 'warning',
+                    deprecated: 'danger',
+                    internal: 'danger',
+                }[tag] || 'info';
+                const tagLabel = { eventproperty: 'event' }[tag] || tag;
+                result += section('<h4>' +
+                    tagLabel +
+                    '</h4>\n\n' +
+                    markdown.render(renderLinkTags(node, text)), { className: 'notice--' + noticeStyle });
+            }
+            else if (!/alpha|beta|deprecated|eventproperty|experimental|internal|override|public|readonly|sealed|virtual/i.test(tag)) {
+                result += '<strong>' + tag + '</strong>';
+            }
+    }
+    return result;
+}
+function escapeYAMLString(str) {
+    return str.replace(/([^\\])'/g, "$1\\'");
+}
+function trimQuotes(str) {
+    return str.replace(/(^")|("$)/g, '');
+}
+function trimNewline(str) {
+    return str.replace(/(\n+)$/g, '');
+}
+function isVoid(node) {
+    return (node.type === 'void' ||
+        (node.type === 'intrinsic' && node.name === 'void'));
+}
+function getQualifiedSymbol(parent, node) {
+    var _a;
+    if (node.kind === 0) {
+        return '';
+    }
+    if (node.kind === 1) {
+        console.assert(parent.kind === 0);
+        if (parent.children.length === 1) {
+            return '';
+        }
+        return '("' + getModuleName(node) + '":module)';
+    }
+    if (node.kind === 2) {
+        if (/^"(.*)"$/.test(node.name)) {
+            return '("' + trimQuotes(node.name) + '":module)';
+        }
+        return '(' + node.name + '":namespace)';
+    }
+    if (node.type === 'reference') {
+        node = getReflectionByID(node.id);
+    }
+    const symbol = node.name;
+    let selector = {
+        2: 'namespace',
+        4: 'enum',
+        32: 'variable',
+        16: '',
+        64: 'function',
+        128: 'class',
+        256: 'interface',
+        1024: '',
+        2048: '',
+        4096: 'function',
+        262144: 'instance',
+        4194304: 'type',
+    }[node.kind];
+    console.assert(typeof selector !== 'undefined');
+    if (node.kind === 512) {
+        return ':constructor';
+    }
+    if (parent && parent.kind === 128) {
+        if (node.kind === 1024 || node.kind === 2048) {
+            if ((_a = node.flags) === null || _a === void 0 ? void 0 : _a.isStatic) {
+                selector = 'static';
+            }
+            else {
+                selector = 'instance';
+            }
+        }
+    }
+    else if ((parent === null || parent === void 0 ? void 0 : parent.kind) === 256) {
+        selector = '';
+    }
+    const label = getTag(node, 'label');
+    if (label) {
+        selector = label;
+    }
+    return selector ? `(${symbol}:${selector})` : symbol;
+}
+function getQualifiedName(node) {
+    var _a;
+    if (!node || node.kind === 0)
+        return '';
+    if (node.kind === 128 && hasFlag(node, 'isAbstract')) {
+        return (keyword('abstract class ') +
+            '<strong>' +
+            getName(node) +
+            '</strong>');
+    }
+    if (node.kind === 2 && /^"(.*)"$/.test(node.name)) {
+        return (keyword('module ') +
+            '<strong>"' +
+            trimQuotes(node.name).replace(/\.d$/, '') +
+            '"</strong>');
+    }
+    if (node.kind === 1) {
+        return keyword('module ') + '<strong>"' + getName(node) + '"</strong>';
+    }
+    return (keyword((_a = {
+        256: 'interface ',
+        128: 'class ',
+        4: 'enum ',
+        2: 'namespace ',
+        1: 'module ',
+    }[node.kind]) !== null && _a !== void 0 ? _a : '') +
+        '<strong>' +
+        getName(node) +
+        '</strong>');
+}
+function resolveLink(node, link) {
+    if (/^http[s]?:\/\//.test(link)) {
+        return link;
+    }
+    if (!getReflectionByLink(link, node)) {
+        console.warn('Unresolved link in "' + node.name + '": ', link);
+    }
+    let result = '';
+    const imports = link.split('#');
+    if (imports.length > 1) {
+        result = imports[0];
+        link = imports.slice(1).join('');
+    }
+    const linkSegments = link.split('.');
+    let root = gNodes;
+    linkSegments.forEach((linkSegment) => {
+        root = getReflectionByLink(linkSegment, root);
+    });
+    return root
+        ? result + '#' + encodeURIComponent(makePermalink(root).anchor)
+        : result + '#' + linkSegments.join('.');
+}
+function getTutorial(path) {
+    if (!gOptions.tutorialPath)
+        return path;
+    if (!gOptions.tutorialPath.endsWith('/')) {
+        return gOptions.tutorialPath + '/' + path;
+    }
+    return gOptions.tutorialPath + path;
+}
+function renderLinkTags(node, str) {
+    str = str.replace(/{@tutorial\s+(\S+?)[ \|]+(.+?)}/g, (_match, p1, p2) => `<a href="${getTutorial(p1)}">${p2}</a>`);
+    str = str.replace(/{@tutorial\s+(\S+?)}/g, (_match, p1) => `<a href="${getTutorial(p1)}">${p1}</a>`);
+    str = str.replace(/{@linkcode\s+(\S+?)\s*\|\s*(.+?)}/g, (_match, p1, p2) => `<a href="${resolveLink(node, p1)}"><code>${p2}</code></a>`);
+    str = str.replace(/{@linkcode\s+(\S+?)}/g, (_match, p1) => `<a href="${resolveLink(node, p1)}"><code>${p1}</code></a>`);
+    str = str.replace(/\[\[\`(\S+?)\`\s*\|\s*(.+?)\]\]/g, (_match, p1) => `<a href="${resolveLink(node, p1)}"><code>${p1}</code></a>`);
+    str = str.replace(/\[\[\`(\S+?)\`\]\]/g, (_match, p1) => `<a href="${resolveLink(node, p1)}"><code>${p1}</code></a>`);
+    str = str.replace(/{@(?:link|linkplain)\s+(\S+?)\s*\|\s*(.+?)}/g, (_match, p1, p2) => `<a href="${resolveLink(node, p1)}">${p2}</a>`);
+    str = str.replace(/{@(?:link|linkplain)\s+(\S+?)}/g, (_match, p1) => `<a href="${resolveLink(node, p1)}">${p1}</a>`);
+    str = str.replace(/\[\[(\S+?)\s*\|\s*(.+?)\]\]/g, (_match, p1, p2) => `<a href="${resolveLink(node, p1)}">${p2}</a>`);
+    str = str.replace(/\[\[(\S+?)\]\]/g, (_match, p1) => `<a href="${resolveLink(node, p1)}">${p1}</a>`);
+    str = str.replace(/({@(?:inheritDoc)\s+(\S+?)})/gi, (_match, p1, p2) => {
+        if (!p1.startsWith('{@inheritDoc')) {
+            console.warn('Check capitalization of @inheritDoc', p1);
+        }
+        const source = getReflectionByLink(p2, node);
+        if (!source) {
+            console.warn('Unresolved link in "' + node.name + '": ', p1);
+            return p1;
+        }
+        return render(source, 'block-inherit');
+    });
+    return str;
+}
+function renderNotices(node, str) {
+    const lines = str.split('\n');
+    const blocks = [];
+    let inShortBlock = false;
+    let inLongBlock = false;
+    let currentBlock = [];
+    let currentType = '';
+    lines.forEach((line) => {
+        if (inShortBlock) {
+            const m = line.match(/^\s*$/i);
+            if (m) {
+                if (currentBlock.length > 0) {
+                    blocks.push({
+                        type: currentType,
+                        content: currentBlock.join('\n'),
+                    });
+                }
+                inShortBlock = false;
+                currentType = '';
+                currentBlock = [];
+            }
+            else {
+                currentBlock.push(line);
+            }
+        }
+        else if (inLongBlock) {
+            if (/^[ ]{0,3}(\*\*\*|---)/.test(line)) {
+                if (currentBlock.length > 0) {
+                    blocks.push({
+                        type: currentType,
+                        content: currentBlock.join('\n'),
+                    });
+                }
+                inLongBlock = false;
+                currentType = '';
+                currentBlock = [];
+            }
+            else {
+                currentBlock.push(line);
+            }
+        }
+        else {
+            let m = line.match(/\n*\*\*\(([^]+)\):?\s*\*\*\s*:?\s*([^]+)/i);
+            if (m) {
+                if (currentBlock.length > 0) {
+                    blocks.push({
+                        type: currentType,
+                        content: currentBlock.join('\n'),
+                    });
+                }
+                inShortBlock = true;
+                currentType = m[1];
+                currentBlock = [m[2]];
+            }
+            else {
+                m = line.match(/\n*\*\*\(([^]+)\):?\s*\*\*\s*:?\s*$/i);
+                if (m) {
+                    if (currentBlock.length > 0) {
+                        blocks.push({
+                            type: currentType,
+                            content: currentBlock.join('\n'),
+                        });
+                    }
+                    inLongBlock = true;
+                    currentType = m[1];
+                    currentBlock = [];
+                }
+                else {
+                    currentBlock.push(line);
+                }
+            }
+        }
+    });
+    if (currentBlock.length > 0) {
+        blocks.push({ type: currentType, content: currentBlock.join('\n') });
+    }
+    return blocks
+        .map((block) => {
+        if (block.type) {
+            const noticeType = {
+                danger: 'danger',
+                warning: 'warning',
+                caution: 'warning',
+            }[block.type.toLowerCase()] || 'info';
+            return div('<h4>' +
+                block.type +
+                '</h4>\n' +
+                markdown.render(renderLinkTags(node, block.content)), 'notice--' + noticeType);
+        }
+        return markdown.render(renderLinkTags(node, block.content));
+    })
+        .join('\n');
+}
+function renderComment(node, style) {
+    if (!node)
+        return '';
+    if (node.signatures && !node.comment) {
+        return renderComment(node.signatures[0], style);
+    }
+    if (!node.comment)
+        return '';
+    let result = '';
+    const newLine = '\n';
+    if (node.comment.shortText) {
+        result += renderNotices(node, node.comment.shortText) + newLine;
+    }
+    if (node.comment.text) {
+        result += renderNotices(node, node.comment.text) + newLine;
+    }
+    const remarks = getTag(node, 'remarks');
+    if (remarks) {
+        result += renderNotices(node, remarks) + newLine;
+    }
+    if (style !== 'block-inherit') {
+        if (node.comment.tags && node.comment.tags.length > 0) {
+            result +=
+                newLine +
+                    node.comment.tags
+                        .map((x) => renderTag(node, x.tag, x.text))
+                        .filter((x) => !!x)
+                        .join(newLine + newLine) +
+                    newLine;
+        }
+    }
+    return result;
+}
+function getModuleName(node) {
+    if (!node)
+        return '';
+    if (node.kind === 1) {
+        return trimQuotes(node.name).replace(/\.d$/, '');
+    }
+    return getModuleName(getParent(node));
+}
+function shouldIgnore(node) {
+    return (hasTag(node, 'hidden') ||
+        hasTag(node, 'ignore') ||
+        hasTag(node, 'internal'));
+}
+function renderCard(node, displayName, content) {
+    const parent = getParent(node);
+    if (!displayName) {
+        displayName = `<strong>${getName(node)}</strong>`;
+        if (node.kind === 4 ||
+            node.kind === 32 ||
+            node.kind === 64 ||
+            node.kind === 128 ||
+            node.kind === 256 ||
+            node.kind === 1024 ||
+            node.kind === 2048) {
+            if (parent &&
+                ((parent.kind === 2 && !/^"(.*)"$/.test(parent.name)) ||
+                    parent.kind === 128 ||
+                    parent.kind === 256)) {
+                displayName = getName(parent) + punct('.') + displayName;
+            }
+        }
+        if (node.kind === 64) {
+            displayName += punct('()');
+        }
+    }
+    const permalink = makePermalink(node);
+    console.assert(!permalink.document);
+    const header = heading(3, getQualifiedName(parent), displayName, permalink, { deprecated: hasTag(node, 'deprecated') });
+    return section(header + content, {
+        permalink,
+        className: 'card',
+        keywords: getKeywords(node).join(', '),
+    });
+}
+function renderMethodCard(node) {
+    if (shouldIgnore(node))
+        return '';
+    const result = renderCommandCard(node);
+    if (result)
+        return result;
+    const parent = getParent(node);
+    let displayName = '';
+    let shortName = '';
+    if (node.kind === 512) {
+        displayName = `${keyword('new ')}<strong>${parent.name}</strong>`;
+        shortName = displayName;
+    }
+    else {
+        shortName = `<strong>${node.name}</strong>`;
+    }
+    return renderCard(node, displayName, renderComment(node, 'block') +
+        div(node.signatures
+            .map((signature) => {
+            let result = renderFlags(signature);
+            result += div(shortName + render(signature, 'inline'), 'code');
+            result += render(signature, 'block');
+            return div(result);
+        })
+            .join('\n<hr>\n')));
+}
+function renderAccessorCard(node) {
+    if (shouldIgnore(node))
+        return '';
+    let displayName = '';
+    if (node.getSignature && node.setSignature) {
+        displayName = keyword('get/set ') + `<strong>${node.name}</strong>`;
+    }
+    else if (node.getSignature) {
+        displayName = keyword('get ') + `<strong>${node.name}</strong>`;
+    }
+    else {
+        displayName = keyword('set ') + `<strong>${node.name}</strong>`;
+    }
+    const signature = node.getSignature
+        ? node.getSignature[0]
+        : node.setSignature[0];
+    let body = node.name + punct(': ') + render(signature.type, 'inline');
+    if (node.getSignature && !node.setSignature) {
+        body += span('read only', 'modifier-tag');
+    }
+    else if (!node.getSignature && node.setSignature) {
+        body += span('write only', 'modifier-tag');
+    }
+    body += render(signature, 'block');
+    return renderCard(node, displayName, div(body) + renderComment(node, 'block'));
+}
+function renderClassSection(node) {
+    if (shouldIgnore(node) || !node.children)
+        return '';
+    if (node.groups.length === 1 &&
+        (node.groups[0].kind & (1024 | 2048)) !== 0 &&
+        !hasTag(node, 'command')) {
+        return render(node, 'card');
+    }
+    const permalink = makePermalink(node);
+    const parent = getParent(node);
+    const result = heading(2, getQualifiedName(parent), getQualifiedName(node), permalink, { deprecated: hasTag(node, 'deprecated') }) + renderFlags(node);
+    let body = '';
+    if (node.extendedTypes) {
+        body +=
+            '<p>' +
+                span('Extends:', 'tag-name') +
+                node.extendedTypes
+                    .map((x) => render(x))
+                    .filter((x) => !!x)
+                    .join(', ') +
+                '</p>';
+    }
+    if (node.implementedTypes) {
+        body +=
+            '<p>' +
+                span('Implements:', 'tag-name') +
+                node.implementedTypes
+                    .map((x) => render(x))
+                    .filter((x) => !!x)
+                    .join(', ') +
+                '</p>';
+    }
+    if (node.extendedBy) {
+        body +=
+            '<p>' +
+                span('Extended by:', 'tag-name') +
+                node.extendedBy
+                    .map((x) => render(x))
+                    .filter((x) => !!x)
+                    .join(', ') +
+                '</p>';
+    }
+    if (node.implementedBy) {
+        body +=
+            '<p>' +
+                span('Implemented by:', 'tag-name') +
+                node.implementedBy
+                    .map((x) => render(x))
+                    .filter((x) => !!x)
+                    .join(', ') +
+                '</p>';
+    }
+    return section(result + div(body) + renderGroups(node), { permalink });
+}
+function renderClassCard(node) {
+    if (shouldIgnore(node) || !node.children)
+        return '';
+    let comment = renderComment(node, 'block');
+    if (comment)
+        comment += '\n<hr>\n';
+    let body = '';
+    if (node.children) {
+        body =
+            '<dl><dt id="' +
+                node.children
+                    .map((x) => {
+                    const permalink = makePermalink(x);
+                    let r = encodeURIComponent(permalink.anchor) + '">';
+                    if (x.kind === 2048) {
+                        r +=
+                            x.signatures
+                                .map((signature) => {
+                                let sigResult = renderFlags(x, 'inline') +
+                                    '<strong>' +
+                                    x.name +
+                                    '</strong>';
+                                if (hasFlag(x, 'isOptional')) {
+                                    sigResult += span('?', 'modifier');
+                                }
+                                sigResult +=
+                                    renderPermalinkAnchor(permalink) +
+                                        render(signature) +
+                                        '</dt><dd>' +
+                                        renderComment(signature, 'block');
+                                return sigResult;
+                            })
+                                .join('</dd><dt>') + '</dd>';
+                    }
+                    else if (x.kind === 1024) {
+                        r += '<strong>' + x.name + '</strong>';
+                        if (hasFlag(x, 'isOptional')) {
+                            r += span('?', 'modifier');
+                        }
+                        r +=
+                            punct(': ') +
+                                render(x.type) +
+                                renderPermalinkAnchor(permalink) +
+                                '</dt><dd>' +
+                                renderComment(x, 'block');
+                    }
+                    else {
+                        console.error('Unexpected item in a "short" class/interface');
+                    }
+                    return r;
+                })
+                    .join('\n</dd><dt id="');
+        body += '\n</dd></dl>\n';
+    }
+    return renderCard(node, getQualifiedName(node), comment + body);
+}
+function renderCommandCard(node) {
+    const parent = getParent(node);
+    const commandTag = (getTag(node, 'command') || getTag(parent, 'command')).trim();
+    if (!commandTag)
+        return '';
+    let signature;
+    if (node.kind === 1024) {
+        if (!node.type.declaration)
+            return '';
+        signature = node.type.declaration.signatures[0];
+    }
+    else if (node.kind === 2048) {
+        signature = node.signatures[0];
+    }
+    else {
+        return '';
+    }
+    const params = [...signature.parameters];
+    let result = commandTag + punct('(');
+    params.shift();
+    if (params.length > 0) {
+        result += punct('[');
+        result += span('"' + node.name + '"', 'string-literal');
+        result += punct(', ');
+        result += params.map((x) => render(x)).join(punct(', '));
+        result += punct(']');
+    }
+    else {
+        result += span('"' + node.name + '"', 'string-literal');
+    }
+    result += punct(')');
+    if (signature.type) {
+        result += punct(': ');
+        result += render(signature.type);
+    }
+    if (params.length > 0 || signature.type) {
+        result += '\n<dl>\n';
+        if (params.length > 0) {
+            result +=
+                '\n<dt>\n' +
+                    params
+                        .map((param) => {
+                        let r = '<strong><var>' + param.name + '</var></strong>';
+                        const typeDef = render(param.type, 'block');
+                        if (typeDef) {
+                            r += punct(': ') + typeDef;
+                        }
+                        r += '\n</dt><dd>\n';
+                        r += renderComment(param, 'block');
+                        return r;
+                    })
+                        .join('\n</dd><dt>\n');
+            result += '\n</dd>\n';
+        }
+        if (signature.type && hasTag(node, 'returns')) {
+            result += '\n<dt>\n';
+            result += '<strong>→ </strong>' + render(signature.type);
+            result += '\n</dt><dd>\n';
+            if (hasTag(node, 'returns')) {
+                result += renderNotices(node, getTag(node, 'returns'));
+            }
+            result += '\n</dd>\n';
+        }
+        result += '\n</dl>\n';
+    }
+    result = div(result, 'code');
+    return renderCard(node, span('command', 'modifier-tag') +
+        '<strong>' +
+        '&#8203;' +
+        node.name +
+        '</strong>', result + renderComment(node, 'block'));
+}
+function renderPropertyCard(node) {
+    if (shouldIgnore(node))
+        return '';
+    const result = renderCommandCard(node);
+    if (result)
+        return result;
+    const parent = getParent(node);
+    let displayName = '';
+    let shortName = '';
+    if (parent && (parent.kind & (1 | 2 | 4 | 128 | 256)) !== 0) {
+        shortName = `<strong>${node.name}</strong>`;
+        displayName = parent.name + '.' + shortName;
+    }
+    return renderCard(node, displayName, render(node.type, 'block') + renderComment(node, 'block'));
+}
+function renderEnumCard(node) {
+    if (shouldIgnore(node))
+        return '';
+    let comment = renderComment(node, 'block');
+    let body = '';
+    if (node.children) {
+        if (comment)
+            comment += '\n<hr>';
+        body += '\n<dl>';
+        body += node.children
+            .map((enumMember) => {
+            return render(enumMember, 'block');
+        })
+            .join('');
+        body += '</dl>';
+    }
+    return renderCard(node, '', comment + body);
+}
+function renderTypeAliasCard(node) {
+    if (shouldIgnore(node))
+        return '';
+    let result = renderComment(node, 'block');
+    const typeDef = render(node, 'block');
+    if (typeDef) {
+        if (result) {
+            result += '\n<hr>\n';
+        }
+        result += div(typeDef, 'code');
+    }
+    return renderCard(node, '', result);
+}
+function renderGroup(node, group) {
+    const topics = getCategories(node, group.kind);
+    if (topics.length === 0)
+        return '';
+    let header = '';
+    if (group.kind !== 512 &&
+        group.kind !== 262144 &&
+        group.kind !== 4) {
+        if ((group.kind === 1024 || group.kind === 2048) &&
+            hasTag(node, 'command')) {
+            header += renderIndex(node, '', topics);
+        }
+        else if ((group.kind & (2 | 4 | 128 | 256)) === 0 &&
+            group.children.length > 1) {
+            const displayTitle = {
+                1: 'Modules',
+                2: 'Namespaces',
+                4: 'Enums',
+                32: 'Variables',
+                64: 'Functions',
+                128: 'Classes',
+                245: 'Interfaces',
+                4194304: 'Types',
+            }[group.kind];
+            header += renderIndex(node, displayTitle, topics);
+        }
+    }
+    const body = topics
+        .map((topic) => {
+        let r = '';
+        if (topic.title) {
+            r = heading(3, '', topic.title, null, {
+                className: 'category-title',
+            });
+        }
+        r += topic.children.map((x) => render(x, 'section')).join('');
+        return r;
+    })
+        .join('');
+    if (!body)
+        return '';
+    return section(header + body);
+}
+function renderGroups(node) {
+    if (!node.groups)
+        return '';
+    const groups = sortGroups(node.groups);
+    return (renderComment(node, 'section') +
+        groups
+            .map((x) => renderGroup(node, x))
+            .filter((x) => !!x)
+            .join('\n\n'));
+}
+function render(node, style = 'inline') {
+    var _a, _b, _c, _d;
+    if (typeof node === 'undefined')
+        return '';
+    if (typeof node === 'number')
+        node = getReflectionByID(node);
+    if (typeof node === 'string')
+        node = getReflectionByName(node);
+    if (style === 'section' && node.groups) {
+        if (node.kind === 128 || node.kind === 256) {
+            return renderClassSection(node);
+        }
+        else if (node.kind === 4) {
+            return renderEnumCard(node);
+        }
+        else if (node.kind === 1) {
+            const permalink = makePermalink(node);
+            const result = heading(2, '', getQualifiedName(node), permalink) +
+                renderGroups(node);
+            return section(result, { permalink });
+        }
+        return renderGroups(node);
+    }
+    const parent = getParent(node);
+    if (typeof node.kind === 'undefined') {
+        if (node.type === 'abstract') {
+            console.error('Unexpected node type ', node.type);
+        }
+        if (node.type === 'array') {
+            return render(node.elementType, 'inline') + punct('[]');
+        }
+        if (node.type === 'conditionals') {
+            console.error('Unexpected node type ', node.type);
+        }
+        if (node.type === 'index') {
+            console.error('Unexpected node type ', node.type);
+        }
+        if (node.type === 'indexedAccess') {
+            return (render(node.objectType) +
+                punct('[') +
+                render(node.indexType) +
+                punct(']'));
+        }
+        if (node.type === 'inferred') {
+            console.error('Unexpected node type ', node.type);
+        }
+        if (node.type === 'intersection') {
+            if (style === 'block') {
+                return ('<ul class="type-block"><li>' +
+                    node.types
+                        .map((x) => render(x, 'block'))
+                        .filter((x) => !!x)
+                        .join(punct(' &amp; ') + '</li>\n<li>') +
+                    '</li></ul>');
+            }
+            return node.types
+                .map((x) => render(x))
+                .filter((x) => !!x)
+                .join(punct(' &amp; '));
+        }
+        if (node.type === 'intrinsic') {
+            return keyword(node.name);
+        }
+        if (node.type === 'predicate') {
+            console.error('Unexpected node type ', node.type);
+        }
+        if (node.type === 'reference') {
+            let typeArguments = '';
+            if (node.typeArguments) {
+                typeArguments =
+                    punct('&lt;') +
+                        node.typeArguments.map((x) => render(x)).join(punct(', ')) +
+                        punct('&gt;');
+            }
+            let candidate;
+            if (typeof node.id !== 'undefined') {
+                candidate = getReflectionByID(node.id);
+            }
+            if (!candidate) {
+                candidate = getReflectionByName(node.name, parent, 4 | 128 | 256 | 4194304);
+            }
+            if (candidate) {
+                return (renderPermalink(makePermalink(candidate), candidate.kind === 16
+                    ?
+                        parent.name + '.' + node.name
+                    : node.name) + typeArguments);
+            }
+            candidate = getReflectionByName(node.name, undefined, 4 | 128 | 256 | 4194304);
+            if (candidate) {
+                return (renderPermalink(makePermalink(candidate), node.name) +
+                    typeArguments);
+            }
+            if (candidate) {
+                return node.name + typeArguments;
+            }
+            if ([
+                'Object',
+                'Function',
+                'Boolean',
+                'Symbol',
+                'String',
+                'RegExp',
+                'Object',
+                'Number',
+                'BigInt',
+                'Math',
+                'Date',
+                'Infinity',
+                'NaN',
+                'globalThis',
+                'Error',
+                'AggregateError',
+                'InternalError',
+                'RangeError',
+                'ReferenceError',
+                'SyntaxError',
+                'TypeError',
+                'URIError',
+                'Array',
+                'Int8Array',
+                'Uint8Array',
+                'Uint8Array',
+                'Uint8ClampedArray',
+                'Int16Array',
+                'Uint16Array',
+                'Int32Array',
+                'Uint32Array',
+                'Float32Array',
+                'Float64Array',
+                'BigInt64Array',
+                'BigUint64Array',
+                'Map',
+                'Set',
+                'WeakMap',
+                'WeakSet',
+                'ArrayBuffer',
+                'SharedArrayBuffer',
+                'Atomics',
+                'DataView',
+                'JSON',
+                'Promise',
+                'Generator',
+                'GeneratorFunction',
+                'AsyncFunction',
+                'Iterator',
+                'AsyncIterator',
+                'Reflect',
+                'Proxy',
+                'Intl',
+                'WebAssembly',
+            ].includes(node.name)) {
+                return ('<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/' +
+                    node.name +
+                    '" class="externallink">' +
+                    node.name +
+                    '<svg><use xlink:href="#external-link"></use></svg>' +
+                    '</a>' +
+                    typeArguments);
+            }
+            return ('<a href="https://developer.mozilla.org/Web/API/' +
+                node.name +
+                '" class="externallink">' +
+                node.name +
+                '<svg><use xlink:href="#external-link"></use></svg>' +
+                '</a>' +
+                typeArguments);
+        }
+        if (node.type === 'reflection') {
+            return render(node.declaration, style);
+        }
+        if (node.type === 'stringLiteral') {
+            return span('"' + node.value + '"', 'string-literal');
+        }
+        if (node.type === 'tuple') {
+            return (punct('[') +
+                node.elements
+                    .map((x) => render(x))
+                    .filter((x) => !!x)
+                    .join(punct(', ')) +
+                punct(']'));
+        }
+        if (node.type === 'typeOperator') {
+            return keyword(node.operator + ' ') + render(node.target);
+        }
+        if (node.type === 'typeParameter') {
+            let result = renderPermalink(makePermalink(node));
+            if (node.constraint) {
+                result += keyword(' extends ');
+                result += render(node.constraint);
+            }
+            return result;
+        }
+        if (node.type === 'union') {
+            if (style === 'block' && !everyStringLiteral(node.types)) {
+                return ('<ul class="type-block"><li>' +
+                    punct('| ') +
+                    node.types
+                        .map((x) => render(x))
+                        .join('</li>\n<li>' + punct('| ')) +
+                    '</li></ul>');
+            }
+            return node.types.map((x) => render(x)).join(punct(' | '));
+        }
+        if (node.type === 'unknown') {
+            return '';
+        }
+        if (node.type === 'void') {
+            return keyword('void');
+        }
+    }
+    let result = '';
+    switch (node.kind) {
+        case 0:
+        case 1:
+        case 2:
+        case 4:
+            console.assert('Unexpected node kind ', Number(node.kind).toString());
+            break;
+        case 16:
+            result = `<dt id="${encodeURIComponent(makePermalink(node).anchor)}">`;
+            result += '<strong>' + node.name + '</strong>';
+            if (typeof node.defaultValue === 'string') {
+                result += punct(' = ') + node.defaultValue;
+            }
+            result += '</dt><dd>';
+            result += renderFlags(node);
+            result += renderComment(node, style);
+            result += '</dd>';
+            break;
+        case 32:
+            if (style === 'card' || style === 'section') {
+                result = renderCard(node, '', div(render(node, 'block')) + renderComment(node, 'block'));
+            }
+            else {
+                result += '<strong>' + node.name + '</strong>';
+                if (hasFlag(node, 'isOptional')) {
+                    result += span('?', 'modifier');
+                }
+                if (((_a = node.type) === null || _a === void 0 ? void 0 : _a.type) === 'unknown') {
+                    result += punct(' = ');
+                    result += node.type.name || '';
+                }
+                if (((_b = node.type) === null || _b === void 0 ? void 0 : _b.type) !== 'unknown') {
+                    result += punct(': ');
+                    result += render(node.type);
+                }
+            }
+            break;
+        case 64:
+            if (style === 'card' || style === 'section') {
+                result = renderMethodCard(node);
+            }
+            else {
+                console.warn('Unexpected style, kind ', node.kind);
+            }
+            break;
+        case 128:
+            if (style === 'card' || style === 'section') {
+                result = renderClassCard(node);
+            }
+            else {
+                result = node.name;
+            }
+            break;
+        case 256:
+            if (style === 'card' || style === 'section') {
+                result = renderClassCard(node);
+            }
+            else {
+                result = node.name;
+            }
+            break;
+        case 512:
+            if (style === 'card' || style === 'section') {
+                result = renderMethodCard(node);
+            }
+            else {
+                console.warn('Unexpected style, kind ', node.kind);
+            }
+            break;
+        case 1024:
+            if (style === 'card' || style === 'section') {
+                result = renderPropertyCard(node);
+            }
+            else {
+                result =
+                    (parent ? parent.name + '.' : '') +
+                        node.name +
+                        punct(': ') +
+                        render(node.type, style);
+            }
+            break;
+        case 2048:
+            if (style === 'card' || style === 'section') {
+                result = renderMethodCard(node);
+            }
+            else {
+                console.error('Function Signature style not supported');
+            }
+            break;
+        case 4096:
+        case 16384:
+            if (style === 'inline') {
+                result = punct('(');
+                if (node.parameters) {
+                    result += node.parameters
+                        .map((x) => render(x))
+                        .join(punct(', '));
+                }
+                result += punct(')');
+                result += punct(': ') + render(node.type);
+            }
+            else if (style === 'block') {
+                if (node.parameters || node.type) {
+                    result += '\n<dl>\n';
+                    if (node.parameters) {
+                        result +=
+                            '\n<dt>\n' +
+                                node.parameters
+                                    .map((param) => {
+                                    let r = '<strong><var>' +
+                                        param.name +
+                                        '</var></strong>';
+                                    const typeDef = render(param.type, 'block');
+                                    if (typeDef) {
+                                        r += punct(': ') + typeDef;
+                                    }
+                                    r += '\n</dt><dd>\n';
+                                    r += renderComment(param, style);
+                                    return r;
+                                })
+                                    .join('\n</dd><dt>\n');
+                        result += '\n</dd>\n';
+                    }
+                    if (node.type &&
+                        (((_c = node.comment) === null || _c === void 0 ? void 0 : _c.returns) ||
+                            !isVoid(node.type))) {
+                        result += '\n<dt>\n';
+                        result +=
+                            '<strong>→ </strong>' +
+                                render(node.type);
+                        result += '\n</dt><dd>\n';
+                        if ((_d = node.comment) === null || _d === void 0 ? void 0 : _d.returns) {
+                            result += renderNotices(node, node.comment.returns);
+                        }
+                        result += '\n</dd>\n';
+                    }
+                    result += '\n</dl>\n';
+                }
+            }
+            else {
+                console.error('Call signature style not supported');
+            }
+            break;
+        case 8192:
+            result +=
+                punct('[') +
+                    node.parameters.map((x) => render(x)).join(punct(', ')) +
+                    punct(']');
+            result += punct(': ') + render(node.type);
+            break;
+        case 32768:
+            if (hasFlag(node, 'isRest')) {
+                result += span('...', 'modifier');
+            }
+            result += `<var>${node.name}</var>`;
+            if (hasFlag(node, 'isOptional')) {
+                result += span('?', 'modifier');
+            }
+            result += punct(': ') + render(node.type);
+            break;
+        case 65536:
+            if (node.signatures) {
+                result += node.signatures
+                    .map((x) => render(x))
+                    .join(punct('; '));
+            }
+            else if (node.children || node.indexSignature) {
+                if (style === 'block' || style === 'block-inherit') {
+                    result += '<div><dl>';
+                    if (node.children) {
+                        result +=
+                            '<dt>' +
+                                node.children
+                                    .map((x) => {
+                                    let dt = render(x) + punct(';');
+                                    if (hasTag(x, 'deprecated')) {
+                                        dt = span(dt, 'deprecated');
+                                    }
+                                    const dd = renderFlags(x) +
+                                        renderComment(x, style);
+                                    return dt + '</dt><dd>' + dd;
+                                })
+                                    .join('</dd><dt>');
+                        result += '</dd>';
+                    }
+                    if (node.indexSignature) {
+                        result += '<dt>';
+                        result += node.indexSignature
+                            .map((x) => render(x))
+                            .join(punct(';') + '</dt><dd>');
+                        result += '</dd>';
+                    }
+                    result += '</dl>' + '</div>';
+                }
+                else if (style === 'inline') {
+                    result += punct('{');
+                    if (node.children) {
+                        result += node.children
+                            .map((x) => render(x))
+                            .join(punct('; '));
+                    }
+                    if (node.indexSignature) {
+                        result += node.indexSignature
+                            .map((x) => render(x))
+                            .join(punct('; '));
+                    }
+                    result += punct('}');
+                }
+                else {
+                    console.error('Unexpected style for Type Literal');
+                }
+            }
+            break;
+        case 131072:
+            result += node.name;
+            if (node.type) {
+                result += keyword(' extends ');
+                result += render(node.type);
+            }
+            break;
+        case 524288:
+        case 1048576:
+            console.warn('Unexpected kind ', node.kind);
+            break;
+        case 262144:
+            if (style === 'card' || style === 'section') {
+                result = renderAccessorCard(node);
+            }
+            else {
+                console.warn('Unexpected style, kind ', node.kind);
+            }
+            break;
+        case 2097152:
+            console.warn('Unexpected style, kind ', node.kind);
+            break;
+        case 4194304:
+            if (style === 'card' || style === 'section') {
+                result = renderTypeAliasCard(node);
+            }
+            else {
+                const def = render(node.type, style);
+                result = '';
+                if (node.typeParameter) {
+                    result += punct('&lt;');
+                    result += node.typeParameter
+                        .map((typeParam) => render(typeParam))
+                        .join(punct(', '));
+                    result += punct('&gt;');
+                    if (def) {
+                        result += punct(' = ');
+                    }
+                }
+                result += def;
+            }
+            break;
+        case 8388608:
+            console.warn('Unexpected style, kind ', node.kind);
+            break;
+        default:
+            console.warn('Unexpected kind ', node.kind);
+    }
+    return result;
+}
+function getReflectionsFromFile(src, options) {
+    var _a;
+    let result = {};
+    const app = new TypeDoc.Application();
+    app.options.addReader(new TypeDoc.TSConfigReader());
+    app.options.addReader(new TypeDoc.TypeDocReader());
+    app.bootstrap({
+        logger: (message, _level, _newline) => console.log(message),
+        mode: 'modules',
+        target: 'es2017',
+        module: 'ESNext',
+        experimentalDecorators: true,
+        moduleResolution: 'node',
+        noEmit: 'true',
+        stripInternal: false,
+        includeDeclarations: true,
+        excludeExternals: true,
+    });
+    src = app.expandInputFiles(src.map((x) => path.resolve(path.normalize(x))));
+    const convertResult = app.converter.convert(src);
+    if ((_a = convertResult.errors) === null || _a === void 0 ? void 0 : _a.length) {
+        app.logger.diagnostics(convertResult.errors);
+        if (options.ignoreErrors) {
+            app.logger.resetErrors();
+        }
+        else {
+            return undefined;
+        }
+    }
+    if (convertResult.project) {
+        result = app.serializer.projectToObject(convertResult.project);
+    }
+    return result;
+}
+function applyTemplate(src, substitutions) {
+    if (typeof src === 'string') {
+        Object.keys(substitutions).forEach((key) => {
+            if (typeof substitutions[key] === 'string') {
+                src = src.replace(new RegExp('{{' + key + '}}', 'g'), substitutions[key]);
+            }
+        });
+        return src;
+    }
+    if (typeof src === 'function') {
+        return src(substitutions);
+    }
+    return '';
+}
+let gNodes;
+let gOptions;
+function grok(src, options) {
+    var _a, _b, _c, _d;
+    try {
+        gOptions = options;
+        gNodes = getReflectionsFromFile(src, options);
+        const sdkName = (_a = options.sdkName) !== null && _a !== void 0 ? _a : '';
+        const packageName = (_c = (_b = options.sdkName) !== null && _b !== void 0 ? _b : gNodes.name) !== null && _c !== void 0 ? _c : '';
+        let content;
+        if (options.modules) {
+            const modules = options.modules
+                .map((x) => getReflectionByName(x, gNodes, 1))
+                .filter((x) => !!x);
+            if (modules.length === 0) {
+                console.warn('Modules not found: ', options.modules.join(', '));
+            }
+            else if (modules.length !== options.modules.length) {
+                const moduleNames = modules.map((x) => getName(x));
+                console.warn('Module not found: ' +
+                    options.modules
+                        .filter((x) => !moduleNames.includes(x))
+                        .join(', '));
+            }
+            content = renderIndex(gNodes, 'Modules', [
+                {
+                    title: '',
+                    children: modules,
+                },
+            ]);
+            content += modules.map((x) => render(x, 'section')).join('');
+            content = section(content);
+        }
+        if (!content)
+            content = render(gNodes, 'section');
+        if (content) {
+            const document = applyTemplate(options.documentTemplate, {
+                packageName: escapeYAMLString(packageName),
+                sdkName: escapeYAMLString(trimNewline(sdkName)),
+                cssVariables: options.cssVariables,
+                content,
+            });
+            return { [(_d = options === null || options === void 0 ? void 0 : options.outFile) !== null && _d !== void 0 ? _d : 'index.html']: document };
+        }
+    }
+    catch (err) {
+        console.error(err);
+    }
+    return {};
+}
+
+exports.grok = grok;
+//# sourceMappingURL=grok.js.map
