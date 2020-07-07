@@ -960,6 +960,14 @@ function renderTag(node: Reflection, tag: string, text: string) {
             // separately and should not be displayed as a regular tag.
             break;
 
+        case 'keyword':
+            console.warn(
+                'Unexpected tag "@keyword" in ' +
+                    node.name +
+                    '. Did you mean "@keywords"?'
+            );
+        // fall through
+
         default:
             if (text) {
                 const noticeStyle =
@@ -2091,7 +2099,7 @@ abstract class Animal {
                 return (
                     '<ul class="type-block"><li>' +
                     node.types
-                        .map((x) => render(x))
+                        .map((x) => render(x, 'block'))
                         .filter((x) => !!x)
                         .join(punct(' &amp; ') + '</li>\n<li>') +
                     '</li></ul>'
@@ -2726,12 +2734,12 @@ export function grok(
             if (modules.length === 0) {
                 console.warn('Modules not found: ', options.modules.join(', '));
             } else if (modules.length !== options.modules.length) {
+                const moduleNames = modules.map((x) => getName(x));
                 console.warn(
-                    'Some modules not found: ',
-                    options.modules
-                        .map((x) => getReflectionByName(x, gNodes, 1))
-                        .filter((x) => x === null)
-                        .join(', ')
+                    'Module not found: ' +
+                        options.modules
+                            .filter((x) => !moduleNames.includes(x))
+                            .join(', ')
                 );
             }
             content = renderIndex(gNodes, 'Modules', [
