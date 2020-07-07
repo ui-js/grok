@@ -493,9 +493,10 @@ const KIND_ORDER = {
 
     256: 7, // interface
     128: 8, // class
+    2: 9, // namespace
 
-    4194304: 9, // type alias
-    4: 10, // enum
+    4194304: 10, // type alias
+    4: 11, // enum
 };
 
 function sortGroups(groups: Reflection[]): Reflection[] {

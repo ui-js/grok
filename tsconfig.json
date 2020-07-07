@@ -14,7 +14,7 @@
         "removeComments": true,
         "sourceMap": true,
         // "strictNullChecks": true,
-        "target": "es2017",
+        "target": "es2020",
 
         "lib": ["es2017", "dom", "dom.iterable", "scripthost"]
     },

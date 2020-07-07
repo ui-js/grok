@@ -2,6 +2,8 @@
 // Inheritance and implementation
 //
 
+type Foo = string;
+
 /**
  * Comments for class
  * @beta

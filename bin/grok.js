@@ -10,7 +10,7 @@ const markdown = new MarkdownIt({
     html: true,
     typographer: true,
     highlight: function (str, lang) {
-        if ((lang !== null && lang !== void 0 ? lang : 'typescript') && highlightJs.getLanguage(lang)) {
+        if ((lang ?? 'typescript') && highlightJs.getLanguage(lang)) {
             try {
                 return highlightJs.highlight(lang, str).value;
             }
@@ -39,15 +39,14 @@ function keyword(k) {
     return '<span class="keyword">' + k + '</span>';
 }
 function section(content, options) {
-    var _a;
     let result = '<section';
-    if (options === null || options === void 0 ? void 0 : options.keywords) {
+    if (options?.keywords) {
         result += ' data-keywords="' + options.keywords.toLowerCase() + '"';
     }
-    if ((_a = options === null || options === void 0 ? void 0 : options.permalink) === null || _a === void 0 ? void 0 : _a.anchor) {
+    if (options?.permalink?.anchor) {
         result += ' id="' + encodeURIComponent(options.permalink.anchor) + '"';
     }
-    if (options === null || options === void 0 ? void 0 : options.className) {
+    if (options?.className) {
         result += ' class="' + options.className + '"';
     }
     result += '>' + content;
@@ -91,18 +90,18 @@ function highlightingMark(content) {
 function heading(level, subhead, head, permalink, options) {
     const tag = 'h' + Number(level).toString();
     let body = subhead ? span(subhead, 'subhead') : '';
-    if (permalink === null || permalink === void 0 ? void 0 : permalink.anchor) {
-        body += highlightingMark(span(head, (options === null || options === void 0 ? void 0 : options.deprecated) ? 'head deprecated' : 'head'));
+    if (permalink?.anchor) {
+        body += highlightingMark(span(head, options?.deprecated ? 'head deprecated' : 'head'));
         body = span(body, 'stack');
         body += renderPermalinkAnchor(permalink);
     }
     else {
-        body += span(head, (options === null || options === void 0 ? void 0 : options.deprecated) ? 'head deprecated' : 'head');
+        body += span(head, options?.deprecated ? 'head deprecated' : 'head');
         body = span(body, 'stack');
     }
     return ('<' +
         tag +
-        ((options === null || options === void 0 ? void 0 : options.className) ? ' class="' + options.className + '"' : '') +
+        (options?.className ? ' class="' + options.className + '"' : '') +
         '>' +
         body +
         '</' +
@@ -110,14 +109,14 @@ function heading(level, subhead, head, permalink, options) {
         '>');
 }
 function getReflectionByID(id, root = gNodes) {
-    var _a, _b;
     if (root.type !== 'reference' && root.id === id)
         return root;
     let result;
-    if ((_b = (_a = root.children) === null || _a === void 0 ? void 0 : _a.some((x) => {
+    if (root.children?.some((x) => {
         result = getReflectionByID(id, x);
         return result !== null;
-    })) !== null && _b !== void 0 ? _b : false) {
+    }) ??
+        false) {
         return result;
     }
     return null;
@@ -243,8 +242,9 @@ const KIND_ORDER = {
     32: 6,
     256: 7,
     128: 8,
-    4194304: 9,
-    4: 10,
+    2: 9,
+    4194304: 10,
+    4: 11,
 };
 function sortGroups(groups) {
     return groups.sort((a, b) => {
@@ -257,9 +257,8 @@ function sortGroups(groups) {
     });
 }
 function getCategories(node, kind) {
-    var _a;
     let result = [];
-    const children = (_a = node.groups) === null || _a === void 0 ? void 0 : _a.filter((x) => (x.kind & kind) !== 0);
+    const children = node.groups?.filter((x) => (x.kind & kind) !== 0);
     if (!children || children.length !== 1) {
         if (node.categories) {
             return sortOtherCategoryAtEnd(node.categories);
@@ -292,14 +291,13 @@ function getCategories(node, kind) {
     return result;
 }
 function makePermalink(node) {
-    var _a;
     node = getReflectionByID(node.id);
     if (!node || node.kind === 0) {
         return null;
     }
     const parent = getParent(node);
     if (!parent) {
-        return { anchor: '', title: (_a = node.name) !== null && _a !== void 0 ? _a : '' };
+        return { anchor: '', title: node.name ?? '' };
     }
     let result;
     if (node.kind === 512) {
@@ -349,7 +347,7 @@ function makePermalink(node) {
 function renderPermalink(permalink, title) {
     if (!permalink)
         return '';
-    title = title !== null && title !== void 0 ? title : permalink.title;
+    title = title ?? permalink.title;
     if (permalink.document && permalink.anchor) {
         return `<a href="${permalink.document}#${encodeURIComponent(permalink.anchor)}">${title}</a>`;
     }
@@ -403,12 +401,10 @@ function renderIndex(node, title, categories, options) {
             .join('\n'));
 }
 function hasFlag(node, flag) {
-    var _a;
-    return (_a = node === null || node === void 0 ? void 0 : node.flags) === null || _a === void 0 ? void 0 : _a[flag];
+    return node?.flags?.[flag];
 }
 function getTag(node, tag) {
-    var _a;
-    if ((_a = node === null || node === void 0 ? void 0 : node.comment) === null || _a === void 0 ? void 0 : _a.tags) {
+    if (node?.comment?.tags) {
         const result = node.comment.tags.filter((x) => x.tag === tag);
         console.assert(result.length <= 1);
         if (result.length === 1) {
@@ -418,12 +414,10 @@ function getTag(node, tag) {
     return '';
 }
 function hasTag(node, tag) {
-    var _a;
-    return (((_a = node === null || node === void 0 ? void 0 : node.comment) === null || _a === void 0 ? void 0 : _a.tags) &&
+    return (node?.comment?.tags &&
         node.comment.tags.filter((x) => x.tag === tag).length > 0);
 }
 function getKeywords(node) {
-    var _a;
     if (node.signatures && !node.comment) {
         return getKeywords(node.signatures[0]);
     }
@@ -432,8 +426,8 @@ function getKeywords(node) {
         console.warn('The tag for keywords is "@keywords", not "@keyword" ', getQualifiedName(node));
         keywords = getTag(node, 'keyword');
     }
-    let result = (keywords !== null && keywords !== void 0 ? keywords : '').split(',');
-    result.push((_a = {
+    let result = (keywords ?? '').split(',');
+    result.push({
         2: 'namespace',
         4: 'enum',
         32: 'variable',
@@ -446,7 +440,7 @@ function getKeywords(node) {
         4096: 'function',
         262144: 'instance',
         4194304: 'type',
-    }[node.kind]) !== null && _a !== void 0 ? _a : '');
+    }[node.kind] ?? '');
     result.push(getName(node));
     if (hasTag(node, 'category')) {
         const category = getTag(node, 'category')
@@ -455,8 +449,7 @@ function getKeywords(node) {
         result = [...result, ...category];
     }
     result = [].concat(...result.map((word) => {
-        var _a;
-        if ((_a = gOptions.keywordSynonyms) === null || _a === void 0 ? void 0 : _a[word]) {
+        if (gOptions.keywordSynonyms?.[word]) {
             return [word, ...gOptions.keywordSynonyms[word]];
         }
         return [word];
@@ -600,7 +593,6 @@ function isVoid(node) {
         (node.type === 'intrinsic' && node.name === 'void'));
 }
 function getQualifiedSymbol(parent, node) {
-    var _a;
     if (node.kind === 0) {
         return '';
     }
@@ -641,7 +633,7 @@ function getQualifiedSymbol(parent, node) {
     }
     if (parent && parent.kind === 128) {
         if (node.kind === 1024 || node.kind === 2048) {
-            if ((_a = node.flags) === null || _a === void 0 ? void 0 : _a.isStatic) {
+            if (node.flags?.isStatic) {
                 selector = 'static';
             }
             else {
@@ -649,7 +641,7 @@ function getQualifiedSymbol(parent, node) {
             }
         }
     }
-    else if ((parent === null || parent === void 0 ? void 0 : parent.kind) === 256) {
+    else if (parent?.kind === 256) {
         selector = '';
     }
     const label = getTag(node, 'label');
@@ -659,7 +651,6 @@ function getQualifiedSymbol(parent, node) {
     return selector ? `(${symbol}:${selector})` : symbol;
 }
 function getQualifiedName(node) {
-    var _a;
     if (!node || node.kind === 0)
         return '';
     if (node.kind === 128 && hasFlag(node, 'isAbstract')) {
@@ -677,13 +668,13 @@ function getQualifiedName(node) {
     if (node.kind === 1) {
         return keyword('module ') + '<strong>"' + getName(node) + '"</strong>';
     }
-    return (keyword((_a = {
+    return (keyword({
         256: 'interface ',
         128: 'class ',
         4: 'enum ',
         2: 'namespace ',
         1: 'module ',
-    }[node.kind]) !== null && _a !== void 0 ? _a : '') +
+    }[node.kind] ?? '') +
         '<strong>' +
         getName(node) +
         '</strong>');
@@ -1246,7 +1237,6 @@ function renderGroups(node) {
             .join('\n\n'));
 }
 function render(node, style = 'inline') {
-    var _a, _b, _c, _d;
     if (typeof node === 'undefined')
         return '';
     if (typeof node === 'number')
@@ -1483,11 +1473,11 @@ function render(node, style = 'inline') {
                 if (hasFlag(node, 'isOptional')) {
                     result += span('?', 'modifier');
                 }
-                if (((_a = node.type) === null || _a === void 0 ? void 0 : _a.type) === 'unknown') {
+                if (node.type?.type === 'unknown') {
                     result += punct(' = ');
                     result += node.type.name || '';
                 }
-                if (((_b = node.type) === null || _b === void 0 ? void 0 : _b.type) !== 'unknown') {
+                if (node.type?.type !== 'unknown') {
                     result += punct(': ');
                     result += render(node.type);
                 }
@@ -1580,14 +1570,14 @@ function render(node, style = 'inline') {
                         result += '\n</dd>\n';
                     }
                     if (node.type &&
-                        (((_c = node.comment) === null || _c === void 0 ? void 0 : _c.returns) ||
+                        (node.comment?.returns ||
                             !isVoid(node.type))) {
                         result += '\n<dt>\n';
                         result +=
                             '<strong>→ </strong>' +
                                 render(node.type);
                         result += '\n</dt><dd>\n';
-                        if ((_d = node.comment) === null || _d === void 0 ? void 0 : _d.returns) {
+                        if (node.comment?.returns) {
                             result += renderNotices(node, node.comment.returns);
                         }
                         result += '\n</dd>\n';
@@ -1720,7 +1710,6 @@ function render(node, style = 'inline') {
     return result;
 }
 function getReflectionsFromFile(src, options) {
-    var _a;
     let result = {};
     const app = new TypeDoc.Application();
     app.options.addReader(new TypeDoc.TSConfigReader());
@@ -1739,7 +1728,7 @@ function getReflectionsFromFile(src, options) {
     });
     src = app.expandInputFiles(src.map((x) => path.resolve(path.normalize(x))));
     const convertResult = app.converter.convert(src);
-    if ((_a = convertResult.errors) === null || _a === void 0 ? void 0 : _a.length) {
+    if (convertResult.errors?.length) {
         app.logger.diagnostics(convertResult.errors);
         if (options.ignoreErrors) {
             app.logger.resetErrors();
@@ -1770,12 +1759,11 @@ function applyTemplate(src, substitutions) {
 let gNodes;
 let gOptions;
 function grok(src, options) {
-    var _a, _b, _c, _d;
     try {
         gOptions = options;
         gNodes = getReflectionsFromFile(src, options);
-        const sdkName = (_a = options.sdkName) !== null && _a !== void 0 ? _a : '';
-        const packageName = (_c = (_b = options.sdkName) !== null && _b !== void 0 ? _b : gNodes.name) !== null && _c !== void 0 ? _c : '';
+        const sdkName = options.sdkName ?? '';
+        const packageName = options.sdkName ?? gNodes.name ?? '';
         let content;
         if (options.modules) {
             const modules = options.modules
@@ -1809,7 +1797,7 @@ function grok(src, options) {
                 cssVariables: options.cssVariables,
                 content,
             });
-            return { [(_d = options === null || options === void 0 ? void 0 : options.outFile) !== null && _d !== void 0 ? _d : 'index.html']: document };
+            return { [options?.outFile ?? 'index.html']: document };
         }
     }
     catch (err) {
