@@ -576,6 +576,7 @@ function renderTag(node, tag, text) {
             else if (!/alpha|beta|deprecated|eventproperty|experimental|internal|override|public|readonly|sealed|virtual/i.test(tag)) {
                 result += '<strong>' + tag + '</strong>';
             }
+            else ;
     }
     return result;
 }
