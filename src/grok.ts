@@ -3,6 +3,7 @@ const TypeDoc = require('typedoc');
 
 const highlightJs = require('highlight.js'); // https://highlightjs.org/
 const path = require('path');
+const fs = require('fs-extra');
 
 const MarkdownIt = require('markdown-it');
 const markdown = new MarkdownIt({
@@ -102,7 +103,8 @@ type ReflectionKind =
     | 1048576
     | 2097152
     | 4194304
-    | 8388608;
+    | 8388608
+    | 16777216;
 
 type Reflection = {
     id?: number;
@@ -118,6 +120,7 @@ type Reflection = {
         | 'intrinsic'
         | 'intersection'
         | 'predicate'
+        | 'query'
         | 'reference'
         | 'reflection'
         | 'stringLiteral'
@@ -171,6 +174,14 @@ type Reflection = {
     implementedTypes?: Reflection[]; // For kind = : Class
     extendedBy?: Reflection[]; // For kind = : Class
     implementedBy?: Reflection[]; // For kind = : Class
+    queryType?: Reflection; // For kind = 'query'
+    inheritedFrom?: Reflection; // For kind = 'method', parent class
+    implementationOf?: Reflection; // For kind = 'method', interface
+    sources?: {
+        fileName: string;
+        character: number;
+        line: number;
+    }[]; // external global references, e.g. "HTMLElement"
 };
 
 type Permalink = {
@@ -193,6 +204,7 @@ function span(
         | 'red modifier-tag'
         | 'orange modifier-tag'
         | 'tag-name'
+        | 'class-label'
         | 'string-literal'
         | 'deprecated'
         | 'highlighting-mark-container'
@@ -447,9 +459,7 @@ function getAncestors(node: Reflection, root = gNodes): Reflection[] {
 }
 
 function getParent(node: Reflection): Reflection {
-    const ancestors = getAncestors(node);
-    if (ancestors) return ancestors[1];
-    return null;
+    return getAncestors(node)?.[1] ?? null;
 }
 
 /**
@@ -593,6 +603,17 @@ function makePermalink(node: Reflection): Permalink | null {
         // kind = 0 -> file
         return null;
     }
+
+    if (node.sources?.[0]?.fileName.endsWith('/lib.dom.d.ts')) {
+        // This symbol is referenced from the DOM library (e.g. HTMLElement)
+        return {
+            document:
+                'https://developer.mozilla.org/en-US/docs/Web/API/' + node.name,
+            anchor: '',
+            title: node.name,
+        };
+    }
+
     const parent = getParent(node);
     if (!parent) {
         // Some nodes are not in the tree of nodes and are not reachable
@@ -639,12 +660,12 @@ function makePermalink(node: Reflection): Permalink | null {
         // There's a bug in typedoc:
         // https://github.com/TypeStrong/typedoc/issues/1284
         // exported modules are returned as 'namespace' with a stringLiteral value
-        if (
-            parent.kind === 1 ||
-            (parent.kind === 2 && /^"(.*)"$/.test(parent.name))
-        ) {
-            result.title = nodeName;
-        }
+        // if (
+        //     parent.kind === 1 ||
+        //     (parent.kind === 2 && /^"(.*)"$/.test(parent.name))
+        // ) {
+        //     result.title = nodeName;
+        // }
     }
     if (shouldIgnore(node)) {
         result.anchor = '';
@@ -669,7 +690,7 @@ function renderPermalink(permalink: Permalink, title?: string): string {
         )}">${title}</a>`;
     } else if (permalink.document) {
         // This is an external reference (without anchor)
-        return `<a href="${permalink.document}}">${title}</a>`;
+        return `<a href="${permalink.document}">${title}</a>`;
     } else if (permalink.anchor) {
         // This is a reference to a local item (in this document)
         return `<a href="#${encodeURIComponent(
@@ -698,8 +719,8 @@ function renderPermalinkAnchor(permalink: Permalink): string {
 }
 
 /**
- * Render a "table of content"
- * for example for all the methods or properties in a class.
+ * Render a "table of content" for example for all the methods or
+ * properties in a class.
  *
  * Each item name has a link to its full definition.
  *
@@ -707,7 +728,7 @@ function renderPermalinkAnchor(permalink: Permalink): string {
  *
  * The items are grouped by categories
  *
- * If there are 1 or less, no table is generated (don't need
+ * If there are 1 or none, no table is generated (don't need
  * a table with 1 item in it)
  */
 function renderIndex(
@@ -723,7 +744,10 @@ function renderIndex(
     }
 
     // Don't display the index if there's only one item in it
-    if (categories.length === 1 && categories[0].children.length <= 1) {
+    if (
+        categories.length === 1 &&
+        filterInherited(filterPrivate(categories[0].children)).length <= 1
+    ) {
         return result;
     }
 
@@ -737,20 +761,38 @@ function renderIndex(
                 if (category.title) {
                     r += `\n\n<h4>${category.title}</h4>\n`;
                 }
-                const items = category.children.map((x) => {
+                let items = category.children.map((x) =>
                     // Sometimes the children can be ID (for 'Types') for example
-                    let n: Reflection;
-                    if (typeof x === 'number') {
-                        n = getReflectionByID(x);
-                    } else {
-                        n = x;
+                    typeof x === 'number' ? getReflectionByID(x) : x
+                );
+                items = items.filter((x) => {
+                    if (
+                        !x.inheritedFrom &&
+                        x.name?.[0] !== '#' &&
+                        !shouldIgnore(x)
+                    ) {
+                        if (x.signatures) {
+                            return (
+                                x.signatures.filter((x) => !shouldIgnore(x))
+                                    .length > 0
+                            );
+                        }
+                        return true;
                     }
-                    return renderPermalink(
-                        makePermalink(n),
-                        getName(n) + options.symbolSuffix
-                    );
+                    return false;
                 });
-                r += '\n<div class="index">' + list(items) + '\n</div>\n';
+
+                r +=
+                    '\n<div class="index">' +
+                    list(
+                        items.map((x) =>
+                            renderPermalink(
+                                makePermalink(x),
+                                getName(x) + options.symbolSuffix
+                            )
+                        )
+                    ) +
+                    '\n</div>\n';
                 return r;
             })
             .join('\n')
@@ -819,6 +861,7 @@ function getKeywords(node: Reflection): string[] {
             2048: '', // method, handled below
             4096: 'function', // call signature (functions)
             262144: 'instance', // get/set
+            524288: 'instance', // get signature (getter without setter)
             4194304: 'type', // 131072? 65535?
         }[node.kind] ?? ''
     );
@@ -835,7 +878,7 @@ function getKeywords(node: Reflection): string[] {
     // Add synonyms
     result = [].concat(
         ...result.map((word) => {
-            if (gOptions.keywordSynonyms?.[word]) {
+            if (gOptions.keywordSynonyms?.hasOwnProperty(word) ?? false) {
                 return [word, ...gOptions.keywordSynonyms[word]];
             }
             return [word];
@@ -1094,7 +1137,9 @@ function getQualifiedSymbol(parent: Reflection, node: Reflection): string {
         2048: '', // method, handled below
         4096: 'function', // call signature (functions)
         262144: 'instance', // get/set
+        524288: 'instance', // get signature
         4194304: 'type', // 131072? 65535?
+        16777216: 'reference', //
     }[node.kind];
     console.assert(typeof selector !== 'undefined');
     if (node.kind === 512) {
@@ -1144,14 +1189,14 @@ function getQualifiedName(node: Reflection): string {
     // There's a bug in typedoc:
     // https://github.com/TypeStrong/typedoc/issues/1284
     // exported modules are returned as 'namespace' with a stringLiteral value
-    if (node.kind === 2 && /^"(.*)"$/.test(node.name)) {
-        return (
-            keyword('module ') +
-            '<strong>"' +
-            trimQuotes(node.name).replace(/\.d$/, '') +
-            '"</strong>'
-        );
-    }
+    // if (node.kind === 2 && /^"(.*)"$/.test(node.name)) {
+    //     return (
+    //         keyword('module ') +
+    //         '<strong>"' +
+    //         trimQuotes(node.name).replace(/\.d$/, '') +
+    //         '"</strong>'
+    //     );
+    // }
     if (node.kind === 1) {
         return keyword('module ') + '<strong>"' + getName(node) + '"</strong>';
     }
@@ -1214,6 +1259,17 @@ function getTutorial(path: string): string {
         return gOptions.tutorialPath + '/' + path;
     }
     return gOptions.tutorialPath + path;
+}
+
+/**
+ * Return a list of reflection, with private symbols (e.g '#foo') removed
+ */
+function filterPrivate(list: Reflection[]): Reflection[] {
+    return list.filter((x) => x.name?.[0] !== '#');
+}
+
+function filterInherited(list: Reflection[]): Reflection[] {
+    return list.filter((x) => !x.inheritedFrom);
 }
 
 /**
@@ -1393,9 +1449,7 @@ function renderNotices(node: Reflection, str: string): string {
                         caution: 'warning',
                     }[block.type.toLowerCase()] || 'info';
                 return div(
-                    '<h4>' +
-                        block.type +
-                        '</h4>\n' +
+                    `<h4>${block.type}</h4>\n` +
                         markdown.render(renderLinkTags(node, block.content)),
                     'notice--' + noticeType
                 );
@@ -1438,10 +1492,11 @@ function renderComment(node: Reflection, style: string): string {
     return result;
 }
 
-function getModuleName(node) {
+function getModuleName(node): string {
     if (!node) return '';
     if (node.kind === 1) {
-        return trimQuotes(node.name).replace(/\.d$/, '');
+        const result = trimQuotes(node.name).replace(/\.d$/, '');
+        return result.match(/\/([a-z0-9_-]*[\/]?)$/)?.[1] ?? result;
     }
     return getModuleName(getParent(node));
 }
@@ -1451,13 +1506,14 @@ function shouldIgnore(node: Reflection): boolean {
     // even created.
     // @internal will result in nodes being created, unless --strip-internal is
     // true (which it isn't).
-    // @internal is in general a better tag, as it allows us to distintguish
+    // @internal is in general a better tag, as it allows us to distinguish
     // between an @internal symbols (which should not be documented) and an
     // external symbol (which has an external link)
     return (
         hasTag(node, 'hidden') ||
         hasTag(node, 'ignore') ||
-        hasTag(node, 'internal')
+        hasTag(node, 'internal') ||
+        node.name[0] === '#' // Private symbols (starts with '#')...
     );
 }
 
@@ -1544,6 +1600,7 @@ function renderMethodCard(node: Reflection): string {
         shortName = displayName;
     } else {
         shortName = `<strong>${node.name}</strong>`;
+        displayName = shortName;
     }
 
     // Display one or more function signatures,
@@ -1551,13 +1608,14 @@ function renderMethodCard(node: Reflection): string {
     // - function foo.bar(x: string): number
     // - comments about this function
     // - details about each of the arguments
-
+    const signatures = node.signatures.filter((x) => !shouldIgnore(x));
+    if (signatures.length === 0) return '';
     return renderCard(
         node,
         displayName,
         renderComment(node, 'block') +
             div(
-                node.signatures
+                signatures
                     .map((signature) => {
                         let result = renderFlags(signature);
                         // Display the "short" signature (kind 4096)
@@ -1600,11 +1658,10 @@ function renderAccessorCard(node: Reflection) {
         : node.setSignature[0];
     let body = node.name + punct(': ') + render(signature.type, 'inline');
     if (node.getSignature && !node.setSignature) {
-        body += span('read only', 'modifier-tag');
+        body += '&nbsp;&nbsp;' + span('read only', 'modifier-tag');
     } else if (!node.getSignature && node.setSignature) {
-        body += span('write only', 'modifier-tag');
+        body += '&nbsp;&nbsp;' + span('write only', 'modifier-tag');
     }
-    body += render(signature, 'block');
 
     return renderCard(
         node,
@@ -1651,7 +1708,7 @@ function renderClassSection(node: Reflection): string {
     if (node.extendedTypes) {
         body +=
             '<p>' +
-            span('Extends:', 'tag-name') +
+            span('Extends', 'class-label') +
             node.extendedTypes
                 .map((x) => render(x))
                 .filter((x) => !!x)
@@ -1659,21 +1716,23 @@ function renderClassSection(node: Reflection): string {
             '</p>';
     }
 
-    if (node.implementedTypes) {
-        body +=
-            '<p>' +
-            span('Implements:', 'tag-name') +
-            node.implementedTypes
-                .map((x) => render(x))
-                .filter((x) => !!x)
-                .join(', ') +
-            '</p>';
+    if (node.implementedTypes && node.implementedTypes.length > 0) {
+        if (node.implementedTypes.length > 0) {
+            body +=
+                '<p>' +
+                span('Implements', 'class-label') +
+                node.implementedTypes
+                    .map((x) => render(x))
+                    .filter((x) => !!x)
+                    .join(', ') +
+                '</p>';
+        }
     }
 
     if (node.extendedBy) {
         body +=
             '<p>' +
-            span('Extended by:', 'tag-name') +
+            span('Extended by', 'class-label') +
             node.extendedBy
                 .map((x) => render(x))
                 .filter((x) => !!x)
@@ -1682,14 +1741,20 @@ function renderClassSection(node: Reflection): string {
     }
 
     if (node.implementedBy) {
-        body +=
-            '<p>' +
-            span('Implemented by:', 'tag-name') +
-            node.implementedBy
-                .map((x) => render(x))
-                .filter((x) => !!x)
-                .join(', ') +
-            '</p>';
+        // The class is sometimes in its own "implementedBy" list
+        const implementedBy = node.implementedBy.filter(
+            (x) => x.id !== node.id
+        );
+        if (implementedBy.length > 0) {
+            body +=
+                '<p>' +
+                span('Implemented by', 'class-label') +
+                implementedBy
+                    .map((x) => render(x))
+                    .filter((x) => !!x)
+                    .join(', ') +
+                '</p>';
+        }
     }
 
     return section(result + div(body) + renderGroups(node), { permalink });
@@ -1713,8 +1778,8 @@ function renderClassCard(node) {
     if (node.children) {
         body =
             '<dl><dt id="' +
-            node.children
-                .map((x) => {
+            filterPrivate(node.children)
+                .map((x: Reflection) => {
                     const permalink = makePermalink(x);
                     let r = encodeURIComponent(permalink.anchor) + '">';
                     if (x.kind === 2048) {
@@ -1746,7 +1811,7 @@ function renderClassCard(node) {
                         }
                         r +=
                             punct(': ') +
-                            render(x.type) +
+                            render(x.type as Reflection) +
                             renderPermalinkAnchor(permalink) +
                             '</dt><dd>' +
                             renderComment(x, 'block');
@@ -1979,7 +2044,10 @@ function renderGroup(node: Reflection, group: Reflection): string {
                     className: 'category-title',
                 });
             }
-            r += topic.children.map((x) => render(x, 'section')).join('');
+            r += filterInherited(topic.children)
+                .filter((x) => x.id !== node.extendedTypes?.[0].id ?? -1) // ??? The parent class is sometimes present as a static property of the subclass
+                .map((x) => render(x, 'section'))
+                .join('');
             return r;
         })
         .join('');
@@ -2124,6 +2192,17 @@ abstract class Animal {
             console.error('Unexpected node type ', node.type);
         }
 
+        if (node.type === 'query') {
+            /*
+             * Represents a type that is constructed by querying the type of a reflection.
+             * ```ts
+             * const x = 1
+             * type Z = typeof x // query on reflection for x
+             * ```
+             */
+            return keyword('typeof ') + render(node.queryType);
+        }
+
         if (node.type === 'reference') {
             // E.g. the name of another type
             // For example, T in 'f(a:T)'
@@ -2239,6 +2318,37 @@ abstract class Animal {
                 return (
                     '<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/' +
                     node.name +
+                    '" class="externallink">' +
+                    node.name +
+                    '<svg><use xlink:href="#external-link"></use></svg>' +
+                    '</a>' +
+                    typeArguments
+                );
+            }
+
+            // Typescript utility types
+            const typescriptUtilityType = {
+                Partial: 'partialtype',
+                Readonly: 'readonlytype',
+                Record: 'recordtype',
+                Pick: 'picktype',
+                Omit: 'omitype',
+                Exclude: 'excludetype',
+                Extract: 'extracttype',
+                NonNullable: 'nonnullabletype',
+                Parameters: 'parameterestype',
+                ConstructorParameters: 'constructorparameterstype',
+                ReturnType: 'returntype',
+                InstanceType: 'instancetype',
+                Required: 'requiredtype',
+                ThisParameterType: 'thisparametertype',
+                OmitThisParameter: 'omitthisparametertype',
+                ThisType: 'thistypetype',
+            }[node.name];
+            if (typescriptUtilityType) {
+                return (
+                    '<a href="https://www.typescriptlang.org/docs/handbook/utility-types.html#' +
+                    typescriptUtilityType +
                     '" class="externallink">' +
                     node.name +
                     '<svg><use xlink:href="#external-link"></use></svg>' +
@@ -2414,7 +2524,7 @@ abstract class Animal {
             if (style === 'card' || style === 'section') {
                 result = renderMethodCard(node);
             } else {
-                console.warn('Unexpected style, kind ', node.kind);
+                result = 'constructor' + render(node.signatures[0], style);
             }
             break;
 
@@ -2422,11 +2532,14 @@ abstract class Animal {
             if (style === 'card' || style === 'section') {
                 result = renderPropertyCard(node);
             } else {
-                result =
-                    (parent ? parent.name + '.' : '') +
-                    node.name +
-                    punct(': ') +
-                    render(node.type as Reflection, style);
+                // If not a private symbol (starts with '#')...
+                if (node.name[0] !== '#') {
+                    result =
+                        (parent ? parent.name + '.' : '') +
+                        node.name +
+                        punct(': ') +
+                        render(node.type as Reflection, style);
+                }
             }
             break;
 
@@ -2434,7 +2547,9 @@ abstract class Animal {
             if (style === 'card' || style === 'section') {
                 result = renderMethodCard(node);
             } else {
-                console.error('Function Signature style not supported');
+                // Only render the comment
+                // This code path is used with @inheritDoc()
+                result = renderComment(node, 'block');
             }
             break;
 
@@ -2589,12 +2704,18 @@ abstract class Animal {
                 result += render(node.type as Reflection);
             }
             break;
+
         case 524288: // Get signature
         case 1048576: // Set signature
             // The signature for the get/set should never be rendered.
             // They are aggregated in their parent 'Accessor' node
-            console.warn('Unexpected kind ', node.kind);
+            console.warn(
+                `Unexpected kind = ${node.kind} for ${getQualifiedName(
+                    node
+                ).replace(/<[^>]*>/g, ' ')}`
+            );
             break;
+
         case 262144: // Accessor (get/set)
             if (style === 'card' || style === 'section') {
                 result = renderAccessorCard(node);
@@ -2602,6 +2723,7 @@ abstract class Animal {
                 console.warn('Unexpected style, kind ', node.kind);
             }
             break;
+
         case 2097152: // Object literal
             console.warn('Unexpected style, kind ', node.kind);
             break;
@@ -2631,8 +2753,16 @@ abstract class Animal {
             console.warn('Unexpected style, kind ', node.kind);
             break;
 
+        case 16777216:
+            // "reference"
+            break;
+
         default:
-            console.warn('Unexpected kind ', node.kind);
+            console.warn(
+                `Unexpected kind = ${node.kind} for ${getQualifiedName(
+                    node
+                ).replace(/<[^>]*>/g, ' ')}`
+            );
     }
 
     return result;
@@ -2650,7 +2780,7 @@ function getReflectionsFromFile(src: string[], options: Options): Reflection {
         logger: (message, _level, _newline) => console.log(message),
         mode: 'modules', // or 'file', 'modules' or 'library'
 
-        target: 'es2017',
+        target: 'es2019',
         module: 'ESNext',
         experimentalDecorators: true,
 
@@ -2670,7 +2800,15 @@ function getReflectionsFromFile(src: string[], options: Options): Reflection {
         excludeExternals: true,
     });
 
-    src = app.expandInputFiles(src.map((x) => path.resolve(path.normalize(x))));
+    src = app.expandInputFiles(
+        src.map((x) => {
+            const f = path.resolve(path.normalize(x));
+            if (!fs.existsSync(f)) {
+                console.warn('File not found "' + f + '"');
+            }
+            return f;
+        })
+    );
 
     const convertResult = app.converter.convert(src);
     if (convertResult.errors?.length) {
@@ -2736,14 +2874,23 @@ export function grok(
                 .map((x) => getReflectionByName(x, gNodes, 1))
                 .filter((x) => !!x);
             if (modules.length === 0) {
-                console.warn('Modules not found: ', options.modules.join(', '));
+                console.warn(
+                    'Modules ' +
+                        options.modules.join(', ') +
+                        ' not found in "' +
+                        src +
+                        '"'
+                );
             } else if (modules.length !== options.modules.length) {
                 const moduleNames = modules.map((x) => getName(x));
                 console.warn(
-                    'Module not found: ' +
+                    'Module ' +
                         options.modules
                             .filter((x) => !moduleNames.includes(x))
-                            .join(', ')
+                            .join(', ') +
+                        ' in "' +
+                        src +
+                        '"'
                 );
             }
             content = renderIndex(gNodes, 'Modules', [

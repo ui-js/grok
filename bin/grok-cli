@@ -4,6 +4,7 @@
 const TypeDoc = require('typedoc');
 const highlightJs = require('highlight.js');
 const path = require('path');
+const fs = require('fs-extra');
 const MarkdownIt = require('markdown-it');
 const markdown = new MarkdownIt({
     html: true,
@@ -204,10 +205,7 @@ function getAncestors(node, root = gNodes) {
     return null;
 }
 function getParent(node) {
-    const ancestors = getAncestors(node);
-    if (ancestors)
-        return ancestors[1];
-    return null;
+    return getAncestors(node)?.[1] ?? null;
 }
 function getChildrenByID(node, children) {
     return children.map((x) => node.children.filter((child) => child.id === x)[0]);
@@ -294,6 +292,13 @@ function makePermalink(node) {
     if (!node || node.kind === 0) {
         return null;
     }
+    if (node.sources?.[0]?.fileName.endsWith('/lib.dom.d.ts')) {
+        return {
+            document: 'https://developer.mozilla.org/en-US/docs/Web/API/' + node.name,
+            anchor: '',
+            title: node.name,
+        };
+    }
     const parent = getParent(node);
     if (!parent) {
         return { anchor: '', title: node.name ?? '' };
@@ -333,10 +338,6 @@ function makePermalink(node) {
                 anchor: qualifiedSymbol,
                 title: nodeName,
             };
-        if (parent.kind === 1 ||
-            (parent.kind === 2 && /^"(.*)"$/.test(parent.name))) {
-            result.title = nodeName;
-        }
     }
     if (shouldIgnore(node)) {
         result.anchor = '';
@@ -351,7 +352,7 @@ function renderPermalink(permalink, title) {
         return `<a href="${permalink.document}#${encodeURIComponent(permalink.anchor)}">${title}</a>`;
     }
     else if (permalink.document) {
-        return `<a href="${permalink.document}}">${title}</a>`;
+        return `<a href="${permalink.document}">${title}</a>`;
     }
     else if (permalink.anchor) {
         return `<a href="#${encodeURIComponent(permalink.anchor)}">${title}</a>`;
@@ -373,7 +374,8 @@ function renderIndex(node, title, categories, options) {
     if (title) {
         result = heading(3, getQualifiedName(node), title);
     }
-    if (categories.length === 1 && categories[0].children.length <= 1) {
+    if (categories.length === 1 &&
+        filterInherited(filterPrivate(categories[0].children)).length <= 1) {
         return result;
     }
     options = options || { symbolSuffix: '' };
@@ -384,17 +386,23 @@ function renderIndex(node, title, categories, options) {
             if (category.title) {
                 r += `\n\n<h4>${category.title}</h4>\n`;
             }
-            const items = category.children.map((x) => {
-                let n;
-                if (typeof x === 'number') {
-                    n = getReflectionByID(x);
+            let items = category.children.map((x) => typeof x === 'number' ? getReflectionByID(x) : x);
+            items = items.filter((x) => {
+                if (!x.inheritedFrom &&
+                    x.name?.[0] !== '#' &&
+                    !shouldIgnore(x)) {
+                    if (x.signatures) {
+                        return (x.signatures.filter((x) => !shouldIgnore(x))
+                            .length > 0);
+                    }
+                    return true;
                 }
-                else {
-                    n = x;
-                }
-                return renderPermalink(makePermalink(n), getName(n) + options.symbolSuffix);
+                return false;
             });
-            r += '\n<div class="index">' + list(items) + '\n</div>\n';
+            r +=
+                '\n<div class="index">' +
+                    list(items.map((x) => renderPermalink(makePermalink(x), getName(x) + options.symbolSuffix))) +
+                    '\n</div>\n';
             return r;
         })
             .join('\n'));
@@ -438,6 +446,7 @@ function getKeywords(node) {
         2048: '',
         4096: 'function',
         262144: 'instance',
+        524288: 'instance',
         4194304: 'type',
     }[node.kind] ?? '');
     result.push(getName(node));
@@ -448,7 +457,7 @@ function getKeywords(node) {
         result = [...result, ...category];
     }
     result = [].concat(...result.map((word) => {
-        if (gOptions.keywordSynonyms?.[word]) {
+        if (gOptions.keywordSynonyms?.hasOwnProperty(word) ?? false) {
             return [word, ...gOptions.keywordSynonyms[word]];
         }
         return [word];
@@ -625,7 +634,9 @@ function getQualifiedSymbol(parent, node) {
         2048: '',
         4096: 'function',
         262144: 'instance',
+        524288: 'instance',
         4194304: 'type',
+        16777216: 'reference',
     }[node.kind];
     console.assert(typeof selector !== 'undefined');
     if (node.kind === 512) {
@@ -658,12 +669,6 @@ function getQualifiedName(node) {
             '<strong>' +
             getName(node) +
             '</strong>');
-    }
-    if (node.kind === 2 && /^"(.*)"$/.test(node.name)) {
-        return (keyword('module ') +
-            '<strong>"' +
-            trimQuotes(node.name).replace(/\.d$/, '') +
-            '"</strong>');
     }
     if (node.kind === 1) {
         return keyword('module ') + '<strong>"' + getName(node) + '"</strong>';
@@ -708,6 +713,12 @@ function getTutorial(path) {
         return gOptions.tutorialPath + '/' + path;
     }
     return gOptions.tutorialPath + path;
+}
+function filterPrivate(list) {
+    return list.filter((x) => x.name?.[0] !== '#');
+}
+function filterInherited(list) {
+    return list.filter((x) => !x.inheritedFrom);
 }
 function renderLinkTags(node, str) {
     str = str.replace(/{@tutorial\s+(\S+?)[ \|]+(.+?)}/g, (_match, p1, p2) => `<a href="${getTutorial(p1)}">${p2}</a>`);
@@ -817,9 +828,7 @@ function renderNotices(node, str) {
                 warning: 'warning',
                 caution: 'warning',
             }[block.type.toLowerCase()] || 'info';
-            return div('<h4>' +
-                block.type +
-                '</h4>\n' +
+            return div(`<h4>${block.type}</h4>\n` +
                 markdown.render(renderLinkTags(node, block.content)), 'notice--' + noticeType);
         }
         return markdown.render(renderLinkTags(node, block.content));
@@ -863,14 +872,16 @@ function getModuleName(node) {
     if (!node)
         return '';
     if (node.kind === 1) {
-        return trimQuotes(node.name).replace(/\.d$/, '');
+        const result = trimQuotes(node.name).replace(/\.d$/, '');
+        return result.match(/\/([a-z0-9_-]*[\/]?)$/)?.[1] ?? result;
     }
     return getModuleName(getParent(node));
 }
 function shouldIgnore(node) {
     return (hasTag(node, 'hidden') ||
         hasTag(node, 'ignore') ||
-        hasTag(node, 'internal'));
+        hasTag(node, 'internal') ||
+        node.name[0] === '#');
 }
 function renderCard(node, displayName, content) {
     const parent = getParent(node);
@@ -918,9 +929,13 @@ function renderMethodCard(node) {
     }
     else {
         shortName = `<strong>${node.name}</strong>`;
+        displayName = shortName;
     }
+    const signatures = node.signatures.filter((x) => !shouldIgnore(x));
+    if (signatures.length === 0)
+        return '';
     return renderCard(node, displayName, renderComment(node, 'block') +
-        div(node.signatures
+        div(signatures
             .map((signature) => {
             let result = renderFlags(signature);
             result += div(shortName + render(signature, 'inline'), 'code');
@@ -947,12 +962,11 @@ function renderAccessorCard(node) {
         : node.setSignature[0];
     let body = node.name + punct(': ') + render(signature.type, 'inline');
     if (node.getSignature && !node.setSignature) {
-        body += span('read only', 'modifier-tag');
+        body += '&nbsp;&nbsp;' + span('read only', 'modifier-tag');
     }
     else if (!node.getSignature && node.setSignature) {
-        body += span('write only', 'modifier-tag');
+        body += '&nbsp;&nbsp;' + span('write only', 'modifier-tag');
     }
-    body += render(signature, 'block');
     return renderCard(node, displayName, div(body) + renderComment(node, 'block'));
 }
 function renderClassSection(node) {
@@ -970,27 +984,29 @@ function renderClassSection(node) {
     if (node.extendedTypes) {
         body +=
             '<p>' +
-                span('Extends:', 'tag-name') +
+                span('Extends', 'class-label') +
                 node.extendedTypes
                     .map((x) => render(x))
                     .filter((x) => !!x)
                     .join(', ') +
                 '</p>';
     }
-    if (node.implementedTypes) {
-        body +=
-            '<p>' +
-                span('Implements:', 'tag-name') +
-                node.implementedTypes
-                    .map((x) => render(x))
-                    .filter((x) => !!x)
-                    .join(', ') +
-                '</p>';
+    if (node.implementedTypes && node.implementedTypes.length > 0) {
+        if (node.implementedTypes.length > 0) {
+            body +=
+                '<p>' +
+                    span('Implements', 'class-label') +
+                    node.implementedTypes
+                        .map((x) => render(x))
+                        .filter((x) => !!x)
+                        .join(', ') +
+                    '</p>';
+        }
     }
     if (node.extendedBy) {
         body +=
             '<p>' +
-                span('Extended by:', 'tag-name') +
+                span('Extended by', 'class-label') +
                 node.extendedBy
                     .map((x) => render(x))
                     .filter((x) => !!x)
@@ -998,14 +1014,17 @@ function renderClassSection(node) {
                 '</p>';
     }
     if (node.implementedBy) {
-        body +=
-            '<p>' +
-                span('Implemented by:', 'tag-name') +
-                node.implementedBy
-                    .map((x) => render(x))
-                    .filter((x) => !!x)
-                    .join(', ') +
-                '</p>';
+        const implementedBy = node.implementedBy.filter((x) => x.id !== node.id);
+        if (implementedBy.length > 0) {
+            body +=
+                '<p>' +
+                    span('Implemented by', 'class-label') +
+                    implementedBy
+                        .map((x) => render(x))
+                        .filter((x) => !!x)
+                        .join(', ') +
+                    '</p>';
+        }
     }
     return section(result + div(body) + renderGroups(node), { permalink });
 }
@@ -1019,7 +1038,7 @@ function renderClassCard(node) {
     if (node.children) {
         body =
             '<dl><dt id="' +
-                node.children
+                filterPrivate(node.children)
                     .map((x) => {
                     const permalink = makePermalink(x);
                     let r = encodeURIComponent(permalink.anchor) + '">';
@@ -1218,7 +1237,10 @@ function renderGroup(node, group) {
                 className: 'category-title',
             });
         }
-        r += topic.children.map((x) => render(x, 'section')).join('');
+        r += filterInherited(topic.children)
+            .filter((x) => x.id !== node.extendedTypes?.[0].id ?? -1)
+            .map((x) => render(x, 'section'))
+            .join('');
         return r;
     })
         .join('');
@@ -1300,6 +1322,9 @@ function render(node, style = 'inline') {
         }
         if (node.type === 'predicate') {
             console.error('Unexpected node type ', node.type);
+        }
+        if (node.type === 'query') {
+            return keyword('typeof ') + render(node.queryType);
         }
         if (node.type === 'reference') {
             let typeArguments = '';
@@ -1388,6 +1413,33 @@ function render(node, style = 'inline') {
             ].includes(node.name)) {
                 return ('<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/' +
                     node.name +
+                    '" class="externallink">' +
+                    node.name +
+                    '<svg><use xlink:href="#external-link"></use></svg>' +
+                    '</a>' +
+                    typeArguments);
+            }
+            const typescriptUtilityType = {
+                Partial: 'partialtype',
+                Readonly: 'readonlytype',
+                Record: 'recordtype',
+                Pick: 'picktype',
+                Omit: 'omitype',
+                Exclude: 'excludetype',
+                Extract: 'extracttype',
+                NonNullable: 'nonnullabletype',
+                Parameters: 'parameterestype',
+                ConstructorParameters: 'constructorparameterstype',
+                ReturnType: 'returntype',
+                InstanceType: 'instancetype',
+                Required: 'requiredtype',
+                ThisParameterType: 'thisparametertype',
+                OmitThisParameter: 'omitthisparametertype',
+                ThisType: 'thistypetype',
+            }[node.name];
+            if (typescriptUtilityType) {
+                return ('<a href="https://www.typescriptlang.org/docs/handbook/utility-types.html#' +
+                    typescriptUtilityType +
                     '" class="externallink">' +
                     node.name +
                     '<svg><use xlink:href="#external-link"></use></svg>' +
@@ -1512,7 +1564,7 @@ function render(node, style = 'inline') {
                 result = renderMethodCard(node);
             }
             else {
-                console.warn('Unexpected style, kind ', node.kind);
+                result = 'constructor' + render(node.signatures[0], style);
             }
             break;
         case 1024:
@@ -1520,11 +1572,13 @@ function render(node, style = 'inline') {
                 result = renderPropertyCard(node);
             }
             else {
-                result =
-                    (parent ? parent.name + '.' : '') +
-                        node.name +
-                        punct(': ') +
-                        render(node.type, style);
+                if (node.name[0] !== '#') {
+                    result =
+                        (parent ? parent.name + '.' : '') +
+                            node.name +
+                            punct(': ') +
+                            render(node.type, style);
+                }
             }
             break;
         case 2048:
@@ -1532,7 +1586,7 @@ function render(node, style = 'inline') {
                 result = renderMethodCard(node);
             }
             else {
-                console.error('Function Signature style not supported');
+                result = renderComment(node, 'block');
             }
             break;
         case 4096:
@@ -1668,7 +1722,7 @@ function render(node, style = 'inline') {
             break;
         case 524288:
         case 1048576:
-            console.warn('Unexpected kind ', node.kind);
+            console.warn(`Unexpected kind = ${node.kind} for ${getQualifiedName(node).replace(/<[^>]*>/g, ' ')}`);
             break;
         case 262144:
             if (style === 'card' || style === 'section') {
@@ -1704,8 +1758,10 @@ function render(node, style = 'inline') {
         case 8388608:
             console.warn('Unexpected style, kind ', node.kind);
             break;
+        case 16777216:
+            break;
         default:
-            console.warn('Unexpected kind ', node.kind);
+            console.warn(`Unexpected kind = ${node.kind} for ${getQualifiedName(node).replace(/<[^>]*>/g, ' ')}`);
     }
     return result;
 }
@@ -1717,7 +1773,7 @@ function getReflectionsFromFile(src, options) {
     app.bootstrap({
         logger: (message, _level, _newline) => console.log(message),
         mode: 'modules',
-        target: 'es2017',
+        target: 'es2019',
         module: 'ESNext',
         experimentalDecorators: true,
         moduleResolution: 'node',
@@ -1726,7 +1782,13 @@ function getReflectionsFromFile(src, options) {
         includeDeclarations: true,
         excludeExternals: true,
     });
-    src = app.expandInputFiles(src.map((x) => path.resolve(path.normalize(x))));
+    src = app.expandInputFiles(src.map((x) => {
+        const f = path.resolve(path.normalize(x));
+        if (!fs.existsSync(f)) {
+            console.warn('File not found "' + f + '"');
+        }
+        return f;
+    }));
     const convertResult = app.converter.convert(src);
     if (convertResult.errors?.length) {
         app.logger.diagnostics(convertResult.errors);
@@ -1770,14 +1832,21 @@ function grok(src, options) {
                 .map((x) => getReflectionByName(x, gNodes, 1))
                 .filter((x) => !!x);
             if (modules.length === 0) {
-                console.warn('Modules not found: ', options.modules.join(', '));
+                console.warn('Modules ' +
+                    options.modules.join(', ') +
+                    ' not found in "' +
+                    src +
+                    '"');
             }
             else if (modules.length !== options.modules.length) {
                 const moduleNames = modules.map((x) => getName(x));
-                console.warn('Module not found: ' +
+                console.warn('Module ' +
                     options.modules
                         .filter((x) => !moduleNames.includes(x))
-                        .join(', '));
+                        .join(', ') +
+                    ' in "' +
+                    src +
+                    '"');
             }
             content = renderIndex(gNodes, 'Modules', [
                 {
@@ -1878,7 +1947,7 @@ updateNotifier({ pkg, shouldNotifyInNpmScript: true }).notify();
 const { cosmiconfigSync } = require('cosmiconfig');
 const configParser = cosmiconfigSync('grok');
 const path$1 = require('path');
-const fs = require('fs-extra');
+const fs$1 = require('fs-extra');
 function mergeObject(object, source) {
     if (object === source)
         return;
@@ -1901,9 +1970,9 @@ function mergeObject(object, source) {
     });
 }
 function outputResult(outDir, result) {
-    fs.mkdir(outDir, { recursive: true });
+    fs$1.mkdir(outDir, { recursive: true });
     Object.keys(result).forEach((x) => {
-        fs.writeFileSync(path$1.resolve(path$1.normalize(path$1.join(outDir, x))), result[x]);
+        fs$1.writeFileSync(path$1.resolve(path$1.normalize(path$1.join(outDir, x))), result[x]);
     });
 }
 function build(argv) {
