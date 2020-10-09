@@ -243,6 +243,7 @@ const KIND_ORDER = {
     2: 9,
     4194304: 10,
     4: 11,
+    16777216: 12,
 };
 function sortGroups(groups) {
     return groups.sort((a, b) => {

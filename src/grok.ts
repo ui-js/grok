@@ -507,6 +507,8 @@ const KIND_ORDER = {
 
     4194304: 10, // type alias
     4: 11, // enum
+
+    16777216: 12, // references
 };
 
 function sortGroups(groups: Reflection[]): Reflection[] {
