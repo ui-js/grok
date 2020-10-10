@@ -753,7 +753,7 @@ function renderIndex(
         return result;
     }
 
-    options = options || { symbolSuffix: '' }; // Could be '()' for functions/methods
+    options = options ?? { symbolSuffix: '' }; // Could be '()' for functions/methods
 
     return (
         result +
@@ -913,7 +913,7 @@ function renderFlags(node: Reflection, style = 'block') {
     const TAGS: {
         [tag: string]: 'red modifier-tag' | 'orange modifier-tag' | '';
     } = {
-        // command: '', // @command: indicate commands dispatched with .perform()
+        // command: '', // @command: indicate commands dispatched with .executeCommand()
         eventproperty: '',
         override: '',
         // public: '',  // @public is not a block tag: it gets converted to a flag
@@ -1292,52 +1292,50 @@ function renderLinkTags(node: Reflection, str: string) {
         (_match, p1) => `<a href="${getTutorial(p1)}">${p1}</a>`
     );
 
-    // @linkcode and [[``]]...
-    // ... with title
+    // @linkcode with title
     str = str.replace(
         /{@linkcode\s+(\S+?)\s*\|\s*(.+?)}/g,
         (_match, p1, p2) =>
             `<a href="${resolveLink(node, p1)}"><code>${p2}</code></a>`
     );
-    // ... no title
+    // @linkcode no title
     str = str.replace(
         /{@linkcode\s+(\S+?)}/g,
         (_match, p1) =>
             `<a href="${resolveLink(node, p1)}"><code>${p1}</code></a>`
     );
-    // ... [[`` | ]]
+    // [[`` | ]]
     str = str.replace(
         /\[\[\`(\S+?)\`\s*\|\s*(.+?)\]\]/g,
         (_match, p1) =>
             `<a href="${resolveLink(node, p1)}"><code>${p1}</code></a>`
     );
-    // ... [[``]]
+    // [[``]]
     str = str.replace(
         /\[\[\`(\S+?)\`\]\]/g,
         (_match, p1) =>
             `<a href="${resolveLink(node, p1)}"><code>${p1}</code></a>`
     );
 
-    // Plain link...
-    // ... @link and @linkplain with title
+    // @link and @linkplain with title
     str = str.replace(
         /{@(?:link|linkplain)\s+(\S+?)\s*\|\s*(.+?)}/g,
         (_match, p1, p2) => `<a href="${resolveLink(node, p1)}">${p2}</a>`
     );
 
-    // ... @link and @linkplain no title
+    // @link and @linkplain no title
     str = str.replace(
         /{@(?:link|linkplain)\s+(\S+?)}/g,
         (_match, p1) => `<a href="${resolveLink(node, p1)}">${p1}</a>`
     );
 
-    // ... [[ | ]] with title
+    // [[ | ]] with title
     str = str.replace(
         /\[\[(\S+?)\s*\|\s*(.+?)\]\]/g,
         (_match, p1, p2) => `<a href="${resolveLink(node, p1)}">${p2}</a>`
     );
 
-    // ... [[]]
+    // [[]]
     str = str.replace(
         /\[\[(\S+?)\]\]/g,
         (_match, p1) => `<a href="${resolveLink(node, p1)}">${p1}</a>`
@@ -1834,7 +1832,7 @@ function renderClassCard(node) {
 
 /**
  * A command is identified by a selector and dispatched with another
- * function, for example the "selectAll" selector and `perform("selectAll")`
+ * function, for example the "selectAll" selector and `executeCommand("selectAll")`
  * A command can be specified either as a property (of type function) or a
  * function (typically in an interface).
  * The @command tag on the interface indicates that the properties/methods
@@ -2886,11 +2884,11 @@ export function grok(
             } else if (modules.length !== options.modules.length) {
                 const moduleNames = modules.map((x) => getName(x));
                 console.warn(
-                    'Module ' +
+                    'Module "' +
                         options.modules
                             .filter((x) => !moduleNames.includes(x))
                             .join(', ') +
-                        ' in "' +
+                        '" not found in "' +
                         src +
                         '"'
                 );
