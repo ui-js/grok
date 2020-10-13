@@ -1,4 +1,5 @@
-// import {TypeDoc} from 'typedoc';
+// import { Application, TSConfigReader, TypeDocReader } from 'typedoc';
+// import { ModuleKind, ScriptTarget } from 'typescript';
 const TypeDoc = require('typedoc');
 
 const highlightJs = require('highlight.js'); // https://highlightjs.org/
@@ -9,12 +10,20 @@ const markdown = new MarkdownIt({
     // See https://markdown-it.github.io/markdown-it/
     html: true,
     typographer: true,
-    highlight: function (str, lang) {
+    highlight: function (str: string, lang: string): string {
         if ((lang ?? 'typescript') && highlightJs.getLanguage(lang)) {
             try {
-                return highlightJs.highlight(lang, str).value;
+                const result = highlightJs.highlight(lang, str);
+                if (result.illegal) {
+                    console.group();
+                    console.error('Syntax error in sample code\n');
+                    console.error(result.illegalBy.msg.replace('\n', '\\n'));
+                    console.error('\n' + result.illegalBy.context);
+                    console.groupEnd();
+                }
+                return result.value;
             } catch (err) {
-                console.log(err);
+                console.error(err);
             }
         }
 
@@ -102,7 +111,8 @@ type ReflectionKind =
     | 1048576
     | 2097152
     | 4194304
-    | 8388608;
+    | 8388608
+    | 16777216; // Reference
 
 type Reflection = {
     id?: number;
@@ -486,7 +496,9 @@ const KIND_ORDER = {
 
     64: 2, // function
     2048: 3, // method
-    262144: 4, // setter/getter (accessor)
+    524288: 3, // get signature
+    1048576: 3, // set signature
+    262144: 3, // setter/getter (accessor)
 
     1024: 5, // property
     32: 6, // variable/properties
@@ -497,6 +509,8 @@ const KIND_ORDER = {
 
     4194304: 10, // type alias
     4: 11, // enum
+
+    16777216: 12, // Reference
 };
 
 function sortGroups(groups: Reflection[]): Reflection[] {
@@ -1956,8 +1970,7 @@ function renderGroup(node: Reflection, group: Reflection): string {
             group.children.length > 1
         ) {
             // A group of things other than namespaces, enums, classes or
-            // interfaces
-            // with more than single entry
+            // interfaces with more than single entry
             const displayTitle = {
                 1: 'Modules',
                 2: 'Namespaces',
@@ -2414,7 +2427,8 @@ abstract class Animal {
             if (style === 'card' || style === 'section') {
                 result = renderMethodCard(node);
             } else {
-                console.warn('Unexpected style, kind ', node.kind);
+                // Inline constructor: skip
+                result = '';
             }
             break;
 
@@ -2593,7 +2607,7 @@ abstract class Animal {
         case 1048576: // Set signature
             // The signature for the get/set should never be rendered.
             // They are aggregated in their parent 'Accessor' node
-            console.warn('Unexpected kind ', node.kind);
+            result = '';
             break;
         case 262144: // Accessor (get/set)
             if (style === 'card' || style === 'section') {
@@ -2630,7 +2644,8 @@ abstract class Animal {
         case 8388608: // Event
             console.warn('Unexpected style, kind ', node.kind);
             break;
-
+        case 16777216: // Reference
+            break;
         default:
             console.warn('Unexpected kind ', node.kind);
     }
@@ -2650,14 +2665,14 @@ function getReflectionsFromFile(src: string[], options: Options): Reflection {
         logger: (message, _level, _newline) => console.log(message),
         mode: 'modules', // or 'file', 'modules' or 'library'
 
-        target: 'es2017',
-        module: 'ESNext',
+        target: 'es2017', // 99, // ScriptTarget.ESNext,
+        module: 'ESNext', // 99, // TypeDoc.ModuleKind.ESNext,
         experimentalDecorators: true,
 
         // To properly resolve 'import' statements
-        moduleResolution: 'node',
+        moduleResolution: 'node', // 2,
 
-        noEmit: 'true',
+        noEmit: 'true', // true,
 
         // We want to preserve the internals in the AST
         // and we'll strip/hide them separately
@@ -2670,7 +2685,13 @@ function getReflectionsFromFile(src: string[], options: Options): Reflection {
         excludeExternals: true,
     });
 
-    src = app.expandInputFiles(src.map((x) => path.resolve(path.normalize(x))));
+    const resolvedSrc = src.map((x) => path.resolve(path.normalize(x)));
+
+    src = app.expandInputFiles(resolvedSrc);
+
+    if (src.length === 0) {
+        console.error('No files found: ', resolvedSrc.join(', '));
+    }
 
     const convertResult = app.converter.convert(src);
     if (convertResult.errors?.length) {
