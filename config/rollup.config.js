@@ -3,13 +3,9 @@ import { terser } from 'rollup-plugin-terser';
 import typescript from 'rollup-plugin-typescript2';
 import { eslint } from 'rollup-plugin-eslint';
 import pkg from '.././package.json';
-// import copy from 'rollup-plugin-copy';
 
 process.env.BUILD = process.env.BUILD || 'development';
 const PRODUCTION = process.env.BUILD === 'production';
-const BUILD_ID =
-    Date.now().toString(36).slice(-2) +
-    Math.floor(Math.random() * 0x186a0).toString(36);
 
 const TYPESCRIPT_OPTIONS = {
     typescript: require('typescript'),
@@ -32,7 +28,6 @@ const TERSER_OPTIONS = {
         global_defs: {
             ENV: JSON.stringify(process.env.BUILD),
             VERSION: JSON.stringify(pkg.version || '0.0'),
-            BUILD_ID: JSON.stringify(BUILD_ID),
         },
     },
 };

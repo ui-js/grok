@@ -13,12 +13,16 @@
             "outFiles": ["${workspaceFolder}/**/*.js"],
             "preLaunchTask": "npm: build",
             "args": [
-                "../mathlive/mathlive/dist/public",
+                "../mathlive/dist/public",
                 // "test/class-test.d.ts",
                 "--outDir",
                 "build",
                 "--verbose",
                 "--ignore-errors"
+            ],
+            "resolveSourceMapLocations": [
+                "${workspaceFolder}/**",
+                "!**/node_modules/**"
             ]
         }
     ]
