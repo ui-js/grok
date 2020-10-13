@@ -1,4 +1,5 @@
-// import {TypeDoc} from 'typedoc';
+// import { Application, TSConfigReader, TypeDocReader } from 'typedoc';
+// import { ModuleKind, ScriptTarget } from 'typescript';
 const TypeDoc = require('typedoc');
 
 const highlightJs = require('highlight.js'); // https://highlightjs.org/
@@ -10,12 +11,20 @@ const markdown = new MarkdownIt({
     // See https://markdown-it.github.io/markdown-it/
     html: true,
     typographer: true,
-    highlight: function (str, lang) {
+    highlight: function (str: string, lang: string): string {
         if ((lang ?? 'typescript') && highlightJs.getLanguage(lang)) {
             try {
-                return highlightJs.highlight(lang, str).value;
+                const result = highlightJs.highlight(lang, str);
+                if (result.illegal) {
+                    console.group();
+                    console.error('Syntax error in sample code\n');
+                    console.error(result.illegalBy.msg.replace('\n', '\\n'));
+                    console.error('\n' + result.illegalBy.context);
+                    console.groupEnd();
+                }
+                return result.value;
             } catch (err) {
-                console.log(err);
+                console.error(err);
             }
         }
 
@@ -73,11 +82,6 @@ type Tag =
     | 'sealed'
     | 'virtual';
 
-type Category = {
-    title: string;
-    children: Reflection[];
-};
-
 type ReflectionKind =
     | 0
     | 1
@@ -104,7 +108,13 @@ type ReflectionKind =
     | 2097152
     | 4194304
     | 8388608
-    | 16777216;
+    | 16777216; // Reference
+
+type Category = {
+    kind: ReflectionKind;
+    title: string;
+    children: Reflection[];
+};
 
 type Reflection = {
     id?: number;
@@ -491,35 +501,48 @@ function sortOtherCategoryAtEnd(categories: Category[]): Category[] {
     });
 }
 
-const KIND_ORDER = {
+const GROUP_KIND_ORDER = {
+    1: 0, // modules
     512: 1, // constructor
 
     64: 2, // function
+
     2048: 3, // method
-    262144: 4, // setter/getter (accessor)
+    262144: 3, // setter/getter (accessor)
+    524288: 3, // get signature
+    1048576: 3, // set signature
 
-    1024: 5, // property
-    32: 6, // variable/properties
+    1024: 4, // property
+    32: 5, // variable/properties
+    256: 6, // interface
+    128: 7, // class
+    2: 8, // namespace
+    4194304: 9, // type alias
+    4: 10, // enum
 
-    256: 7, // interface
-    128: 8, // class
-    2: 9, // namespace
-
-    4194304: 10, // type alias
-    4: 11, // enum
-
-    16777216: 12, // references
+    16777216: 11, // Reference
 };
 
-function sortGroups(groups: Reflection[]): Reflection[] {
-    return groups.sort((a, b) => {
-        console.assert(KIND_ORDER[b.kind] && KIND_ORDER[a.kind]);
-        return KIND_ORDER[a.kind] === KIND_ORDER[b.kind]
-            ? 0
-            : KIND_ORDER[a.kind] < KIND_ORDER[b.kind]
-            ? -1
-            : +1;
+function sortGroups(groups: Reflection[]): Reflection[][] {
+    const result = [];
+    groups.forEach((x) => {
+        const kindOrder = GROUP_KIND_ORDER[x.kind] ?? 12;
+        if (result[kindOrder]) {
+            result[kindOrder].push(x);
+        } else {
+            result[kindOrder] = [x];
+        }
     });
+    return result.filter((x) => !!x);
+
+    // return groups.sort((a, b) => {
+    //     console.assert(GROUP_KIND_ORDER[b.kind] && GROUP_KIND_ORDER[a.kind]);
+    //     return GROUP_KIND_ORDER[a.kind] === GROUP_KIND_ORDER[b.kind]
+    //         ? 0
+    //         : GROUP_KIND_ORDER[a.kind] < GROUP_KIND_ORDER[b.kind]
+    //         ? -1
+    //         : +1;
+    // });
 }
 
 /**
@@ -530,7 +553,7 @@ function sortGroups(groups: Reflection[]): Reflection[] {
  * @category tag (a tsdoc standard)
  */
 
-function getCategories(node: Reflection, kind: number): Category[] {
+function getCategories(node: Reflection, kind: ReflectionKind): Category[] {
     let result = [];
     const children = node.groups?.filter((x) => (x.kind & kind) !== 0);
     if (!children || children.length !== 1) {
@@ -542,6 +565,7 @@ function getCategories(node: Reflection, kind: number): Category[] {
         }
         return [
             {
+                kind,
                 title: '',
                 children: node.children.filter((x) => (x.kind & kind) !== 0),
             },
@@ -550,6 +574,7 @@ function getCategories(node: Reflection, kind: number): Category[] {
     if (children[0].categories) {
         result = children[0].categories.map((category) => {
             return {
+                kind,
                 title: category.title,
                 children: getChildrenByID(node, category.children),
             };
@@ -560,6 +585,7 @@ function getCategories(node: Reflection, kind: number): Category[] {
         console.assert(typeof children[0].children[0] === 'number');
         result = [
             {
+                kind,
                 title: '',
                 children: getChildrenByID(
                     node,
@@ -1997,32 +2023,49 @@ function renderTypeAliasCard(node: Reflection): string {
  *
  * Groups have a 'children' property which is an array of ID
  *  referring to the items
+ *
+ * A group collection is a list of related groups, for example
+ * methods and setters/getters are put in the same collection so that their
+ * index/list is considered together.
+ *
  */
-function renderGroup(node: Reflection, group: Reflection): string {
-    const topics = getCategories(node, group.kind);
+function renderGroup(node: Reflection, groupCollection: Reflection[]): string {
+    const categories = [];
+    // Merge the categories of similar groups (methods, get/set)
+    groupCollection.forEach((group) => {
+        const cats = getCategories(node, group.kind);
+        cats.forEach((cat) => {
+            const existingCat = categories.find((x) => x.title === cat.title);
+            if (existingCat) {
+                existingCat.children = [
+                    ...existingCat.children,
+                    ...cat.children,
+                ];
+            } else {
+                categories.push(cat);
+            }
+        });
+    });
     // If there are any children, there should always be at least
     // one "Other" topic
-    if (topics.length === 0) return '';
+    if (categories.length === 0) return '';
     // Render heading for group, e.g. "Types"... and index
     let header = '';
+    const kind = categories[0].kind;
     if (
-        group.kind !== 512 && // 'Constructors'
-        group.kind !== 262144 && // 'Accessors'
-        group.kind !== 4 // 'Namespaces'
+        kind !== 512 && // 'Constructors'
+        kind !== 262144 && // 'Accessors'
+        kind !== 4 // 'Namespaces'
     ) {
-        if (
-            (group.kind === 1024 || group.kind === 2048) &&
-            hasTag(node, 'command')
-        ) {
+        if ((kind === 1024 || kind === 2048) && hasTag(node, 'command')) {
             // It's a series of commands. Display the index, but no title
-            header += renderIndex(node, '', topics);
+            header += renderIndex(node, '', categories);
         } else if (
-            (group.kind & (2 | 4 | 128 | 256)) === 0 &&
-            group.children.length > 1
+            (kind & (2 | 4 | 128 | 256)) === 0 &&
+            categories.reduce((acc, x) => acc + x.children.length, 0) > 1
         ) {
             // A group of things other than namespaces, enums, classes or
-            // interfaces
-            // with more than single entry
+            // interfaces with more than single entry
             const displayTitle = {
                 1: 'Modules',
                 2: 'Namespaces',
@@ -2032,11 +2075,11 @@ function renderGroup(node: Reflection, group: Reflection): string {
                 128: 'Classes',
                 245: 'Interfaces',
                 4194304: 'Types',
-            }[group.kind];
-            header += renderIndex(node, displayTitle, topics);
+            }[kind];
+            header += renderIndex(node, displayTitle, categories);
         }
     }
-    const body = topics
+    const body = categories
         .map((topic) => {
             let r = '';
             if (topic.title) {
@@ -2752,11 +2795,8 @@ abstract class Animal {
         case 8388608: // Event
             console.warn('Unexpected style, kind ', node.kind);
             break;
-
-        case 16777216:
-            // "reference"
+        case 16777216: // Reference
             break;
-
         default:
             console.warn(
                 `Unexpected kind = ${node.kind} for ${getQualifiedName(
@@ -2780,14 +2820,14 @@ function getReflectionsFromFile(src: string[], options: Options): Reflection {
         logger: (message, _level, _newline) => console.log(message),
         mode: 'modules', // or 'file', 'modules' or 'library'
 
-        target: 'es2019',
-        module: 'ESNext',
+        target: 'es2019', // 99, // ScriptTarget.ESNext,
+        module: 'ESNext', // 99, // TypeDoc.ModuleKind.ESNext,
         experimentalDecorators: true,
 
         // To properly resolve 'import' statements
-        moduleResolution: 'node',
+        moduleResolution: 'node', // 2,
 
-        noEmit: 'true',
+        noEmit: 'true', // true,
 
         // We want to preserve the internals in the AST
         // and we'll strip/hide them separately
@@ -2895,6 +2935,7 @@ export function grok(
             }
             content = renderIndex(gNodes, 'Modules', [
                 {
+                    kind: 1,
                     title: '',
                     children: modules,
                 },
