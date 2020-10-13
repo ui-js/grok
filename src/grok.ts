@@ -2033,8 +2033,7 @@ function renderGroup(node: Reflection, groupCollection: Reflection[]): string {
     const categories = [];
     // Merge the categories of similar groups (methods, get/set)
     groupCollection.forEach((group) => {
-        const cats = getCategories(node, group.kind);
-        cats.forEach((cat) => {
+        getCategories(node, group.kind).forEach((cat) => {
             const existingCat = categories.find((x) => x.title === cat.title);
             if (existingCat) {
                 existingCat.children = [
@@ -2054,7 +2053,6 @@ function renderGroup(node: Reflection, groupCollection: Reflection[]): string {
     const kind = categories[0].kind;
     if (
         kind !== 512 && // 'Constructors'
-        kind !== 262144 && // 'Accessors'
         kind !== 4 // 'Namespaces'
     ) {
         if ((kind === 1024 || kind === 2048) && hasTag(node, 'command')) {
