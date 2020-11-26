@@ -20,10 +20,6 @@
         "bin/grok.js",
         "bin/grok-cli"
     ],
-    "engines": {
-        "node": ">=14.0.0",
-        "npm": ">=6.14.19"
-    },
     "devDependencies": {
         "@cortex-js/prettier-config": "^1.0.0",
         "@rollup/plugin-commonjs": "^16.0.0",
