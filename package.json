@@ -14,20 +14,20 @@
     "main": "bin/grok.js",
     "module": "bin/grok.js",
     "bin": {
-        "grok": "./bin/grok-cli"
+        "grok": "bin/grok-cli"
     },
     "files": [
         "bin/grok.js",
         "bin/grok-cli"
     ],
     "engines": {
-        "npm": ">=6.13",
-        "node": ">=10.0"
+        "npm": ">=7.0",
+        "node": ">=15.0"
     },
     "devDependencies": {
         "@cortex-js/prettier-config": "^1.0.0",
-        "@rollup/plugin-commonjs": "^15.1.0",
-        "@rollup/plugin-node-resolve": "^9.0.0",
+        "@rollup/plugin-commonjs": "^16.0.0",
+        "@rollup/plugin-node-resolve": "^10.0.0",
         "@typescript-eslint/eslint-plugin": "^4.4.1",
         "@typescript-eslint/parser": "^4.4.1",
         "eslint": "^7.11.0",
@@ -41,7 +41,7 @@
         "rollup-plugin-copy": "^3.3.0",
         "rollup-plugin-eslint": "^7.0.0",
         "rollup-plugin-terser": "^7.0.2",
-        "rollup-plugin-typescript2": "^0.27.3"
+        "rollup-plugin-typescript2": "^0.29.0"
     },
     "dependencies": {
         "chalk": "^4.1.0",
@@ -51,7 +51,7 @@
         "fs-extra": "^9.0.1",
         "glob": "^7.1.6",
         "highlight.js": "^10.2.1",
-        "markdown-it": "^11.0.1",
+        "markdown-it": "^12.0.2",
         "markdown-it-deflist": "^2.1.0",
         "please-upgrade-node": "^3.2.0",
         "resolve-from": "^5.0.0",
