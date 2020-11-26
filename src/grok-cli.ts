@@ -1,5 +1,5 @@
 const pkg = require('../package.json');
-require('please-upgrade-node')(pkg);
+// require('please-upgrade-node')(pkg);
 
 const updateNotifier = require('update-notifier');
 // Display an update message

@@ -129,6 +129,7 @@ type Reflection = {
         | 'inferred'
         | 'intrinsic'
         | 'intersection'
+        | 'named-tuple-member'
         | 'predicate'
         | 'query'
         | 'reference'
@@ -166,6 +167,7 @@ type Reflection = {
     getSignature?: Reflection; // For accessors
     setSignature?: Reflection; // For accessors
     elementType?: Reflection;
+    element?: Reflection; // For 'named-tuple-member'
     objectType?: Reflection;
     indexType?: Reflection;
     typeArguments?: Reflection[];
@@ -2172,10 +2174,9 @@ abstract class Animal {
         console.log("roaming the earth...");
     }
 }
-*/ console.error(
-                'Unexpected node type ',
-                node.type
-            );
+*/
+
+            console.error('Unexpected node type ', node.type);
         }
 
         if (node.type === 'array') {
@@ -2242,6 +2243,17 @@ abstract class Animal {
              * ```
              */
             return keyword('typeof ') + render(node.queryType);
+        }
+
+        if (node.type === 'named-tuple-member') {
+            //e.g. [start: number, end: number]
+            return (
+                '<strong>' +
+                node.name +
+                '<strong>' +
+                punct(': ') +
+                render(node.element)
+            );
         }
 
         if (node.type === 'reference') {
@@ -2797,9 +2809,9 @@ abstract class Animal {
             break;
         default:
             console.warn(
-                `Unexpected kind = ${node.kind} for ${getQualifiedName(
-                    node
-                ).replace(/<[^>]*>/g, ' ')}`
+                `Unexpected kind = ${
+                    node.kind ?? node.type
+                } for ${getQualifiedName(node).replace(/<[^>]*>/g, ' ')}`
             );
     }
 
