@@ -52,6 +52,7 @@ function build(argv): void {
         const options = {
             sdkName: 'module',
             verbose: false,
+            exclude: [],
             tutorialPath: '',
             cssVariables: {
                 monospace: 'IBM Plex Mono, monospace',

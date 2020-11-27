@@ -33,6 +33,7 @@ const markdown = new MarkdownIt({
 });
 
 interface Options {
+    exclude?: string[]; // glob patterns of files to exclude, e.g. '**/*.test.ts'
     outFile?: string;
 
     /** If the tsc compiler encounters an error while parsing the declaration files,
@@ -1554,6 +1555,9 @@ function renderCard(
     displayName: string,
     content: string
 ): string {
+    if (shouldIgnore(node)) return '';
+    if (!content) return '';
+
     const parent = getParent(node);
     if (!displayName) {
         displayName = `<strong>${getName(node)}</strong>`;
@@ -2087,8 +2091,9 @@ function renderGroup(node: Reflection, groupCollection: Reflection[]): string {
                     className: 'category-title',
                 });
             }
+            const extendedType = node.extendedTypes?.map((x) => x.name) ?? [];
             r += filterInherited(topic.children)
-                .filter((x) => x.id !== node.extendedTypes?.[0].id ?? -1) // ??? The parent class is sometimes present as a static property of the subclass
+                .filter((x) => !extendedType.includes(x.name)) // ??? The parent class is sometimes present as a static property of the subclass
                 .map((x) => render(x, 'section'))
                 .join('');
             return r;
@@ -2151,13 +2156,13 @@ function render(node: Reflection | number, style = 'inline'): string {
             return renderEnumCard(node);
         } else if (node.kind === 1) {
             // Modules
+            const result = renderGroups(node);
+            if (!result) return '';
             const permalink = makePermalink(node);
-
-            const result =
-                heading(2, '', getQualifiedName(node), permalink) +
-                renderGroups(node);
-
-            return section(result, { permalink });
+            return section(
+                heading(2, '', getQualifiedName(node), permalink) + result,
+                { permalink }
+            );
         }
         return renderGroups(node);
     }
@@ -2830,12 +2835,12 @@ function getReflectionsFromFile(src: string[], options: Options): Reflection {
         logger: (message, _level, _newline) => console.log(message),
         mode: 'modules', // or 'file', 'modules' or 'library'
 
-        target: 'es2019', // 99, // ScriptTarget.ESNext,
-        module: 'ESNext', // 99, // TypeDoc.ModuleKind.ESNext,
-        experimentalDecorators: true,
+        // target: 'es2019', // 99, // ScriptTarget.ESNext,
+        // module: 'ESNext', // 99, // TypeDoc.ModuleKind.ESNext,
+        // experimentalDecorators: true,
 
         // To properly resolve 'import' statements
-        moduleResolution: 'node', // 2,
+        // moduleResolution: 'node', // 2,
 
         noEmit: 'true', // true,
 
@@ -2848,6 +2853,11 @@ function getReflectionsFromFile(src: string[], options: Options): Reflection {
 
         // To exclude references from external files
         excludeExternals: true,
+
+        exclude:
+            typeof options.exclude === 'string'
+                ? [options.exclude]
+                : options.exclude ?? [],
     });
 
     src = app.expandInputFiles(
@@ -2916,10 +2926,20 @@ export function grok(
         gNodes = getReflectionsFromFile(src, options);
 
         const sdkName = options.sdkName ?? '';
-        const packageName = options.sdkName ?? gNodes.name ?? '';
+        const packageName = gNodes.name ?? options.sdkName ?? '';
 
+        let moduleName = '';
+        let className = '';
         let content;
-        if (options.modules) {
+        let directoryName = '';
+
+        if (src.length === 1) {
+            if (fs.lstatSync(src[0]).isDirectory()) {
+                directoryName = path.basename(src[0]);
+            }
+        }
+
+        if (options.modules && options.modules.length > 0) {
             const modules = options.modules
                 .map((x) => getReflectionByName(x, gNodes, 1))
                 .filter((x) => !!x);
@@ -2943,25 +2963,44 @@ export function grok(
                         '"'
                 );
             }
-            content = renderIndex(gNodes, 'Modules', [
-                {
-                    kind: 1,
-                    title: '',
-                    children: modules,
-                },
-            ]);
+            if (gNodes.children.length === 1) {
+                content = renderIndex(gNodes.children[1]);
+            } else {
+                content = renderIndex(gNodes, 'Modules', [
+                    {
+                        kind: 1,
+                        title: '',
+                        children: modules,
+                    },
+                ]);
+            }
             content += modules.map((x) => render(x, 'section')).join('');
             content = section(content);
+            moduleName = options.modules[0] ?? '';
+
+            gNodes.children.forEach((module) => {
+                if (!className) {
+                    module.children.forEach((topLevelNode) => {
+                        if (topLevelNode.kind === 128) {
+                            // We've found a class
+                            className = topLevelNode.name;
+                        }
+                    });
+                }
+            });
         }
         if (!content) content = render(gNodes, 'section');
         if (content) {
             const document = applyTemplate(options.documentTemplate, {
+                directoryName: escapeYAMLString(directoryName),
+                className: escapeYAMLString(className),
+                moduleName: escapeYAMLString(moduleName),
                 packageName: escapeYAMLString(packageName),
                 sdkName: escapeYAMLString(trimNewline(sdkName)),
                 cssVariables: options.cssVariables,
                 content,
             });
-            return { [options?.outFile ?? 'index.html']: document };
+            return { [options.outFile ?? 'index.html']: document };
         }
     } catch (err) {
         console.error(err);
