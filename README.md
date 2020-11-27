@@ -32,6 +32,7 @@ Configuration can be specified:
 The configuration can include the following keys:
 
 -   `sdkName` The name of the SDK being documented
+-   `exclude` An array of glob patterns to skip documenting, e.g. `'**/*.test.ts'`
 -   `cssVariables` A dictionary of variables and their associated value which will be attached to the `<body>` tag.
 -   `tutorialPath` Prefix added to the value of a `{@tutorial}` tag to determine
     the URL to redirected to.
@@ -45,6 +46,9 @@ The configuration can include the following keys:
     -   `{{content}}` HTML markup of the documentation (suitable for as the content of a `<body>` tag)
     -   `{{sdkName}}` The name of the SDK, as indicated above
     -   `{{packageName}}`
+    -   `{{moduleName}}` The name of the module being documented, if there is a single one
+    -   `{{className}}` The name of the first class being documented
+    -   `{{directoryName}}` The name of the directory being documented
 
     If a function, the function is passed an object literal with the following properties: `content`, `sdkName`, `packageName` and `cssVariables` which is the dictionary specified in the options.
 
