@@ -16,61 +16,55 @@ const tcPurple = '#d1d7ff';
 let gUseColor = (process.stdout.isTTY ?? false) && !ciInfo.isCI;
 
 export const terminal = {
-    useColor: (flag: boolean): void => {
-        gUseColor = flag;
-    },
-    autoFormat: (m: string): string => {
-        return m
-            .replace(/("(.*)")/g, (x) => {
-                return terminal.string(x.slice(1, -1));
-            })
-            .replace(/(`(.*)`)/g, (x) => {
-                return terminal.keyword(x);
-            });
-    },
-    success: (m = ''): string => {
-        chalk.green('✔︎   ' + m);
-        return gUseColor ? chalk.bold.green('✔︎   ' + m) : '✔︎   ' + m;
-    },
-    error: (m = ''): string => {
-        return gUseColor
-            ? chalk.hex(tcRed)(chalk.bold('✘   ' + m))
-            : '✘   ' + m;
-    },
-    warning: (m = ''): string => {
-        return gUseColor
-            ? chalk.hex(tcOrange)(chalk.bold('⚠️   ' + m))
-            : '⚠   ' + m;
-    },
-    path: (m = ''): string => {
-        return gUseColor ? chalk.hex(tcBlue).italic(m) : m;
-    },
-    keyword: (m = ''): string => {
-        return gUseColor ? chalk.hex(tcOrange)(m) : m;
-    },
-    string: (m = ''): string => {
-        return gUseColor
-            ? chalk.hex(tcOrange)('"' + chalk.italic(m) + '"')
-            : '"' + m + '"';
-    },
-    dim: (m = ''): string => {
-        return gUseColor ? chalk.hex('#999')(m) : m;
-    },
-    time: (t = new Date()): string => {
-        return gUseColor
-            ? chalk.hex(tcPurple)(`[${t.toLocaleTimeString()}]`)
-            : '[' + t + ']';
-    },
-    link: (m: string): string => {
-        return gUseColor
-            ? '\n▷   ' +
-                  chalk.hex(tcPurple)(
-                      'https://github.com/arnog/chromatic/docs/errors/' +
-                          m +
-                          '.md'
-                  )
-            : '\n▷   https://github.com/arnog/chromatic/docs/errors/' +
-                  m +
-                  '.md';
-    },
+  useColor: (flag: boolean): void => {
+    gUseColor = flag;
+  },
+  autoFormat: (m: string): string => {
+    return m
+      .replace(/("(.*)")/g, (x) => {
+        return terminal.string(x.slice(1, -1));
+      })
+      .replace(/(`(.*)`)/g, (x) => {
+        return terminal.keyword(x);
+      });
+  },
+  success: (m = ''): string => {
+    chalk.green('✔︎   ' + m);
+    return gUseColor ? chalk.bold.green('✔︎   ' + m) : '✔︎   ' + m;
+  },
+  error: (m = ''): string => {
+    return gUseColor ? chalk.hex(tcRed)(chalk.bold('✘   ' + m)) : '✘   ' + m;
+  },
+  warning: (m = ''): string => {
+    return gUseColor
+      ? chalk.hex(tcOrange)(chalk.bold('⚠️   ' + m))
+      : '⚠   ' + m;
+  },
+  path: (m = ''): string => {
+    return gUseColor ? chalk.hex(tcBlue).italic(m) : m;
+  },
+  keyword: (m = ''): string => {
+    return gUseColor ? chalk.hex(tcOrange)(m) : m;
+  },
+  string: (m = ''): string => {
+    return gUseColor
+      ? chalk.hex(tcOrange)('"' + chalk.italic(m) + '"')
+      : '"' + m + '"';
+  },
+  dim: (m = ''): string => {
+    return gUseColor ? chalk.hex('#999')(m) : m;
+  },
+  time: (t = new Date()): string => {
+    return gUseColor
+      ? chalk.hex(tcPurple)(`[${t.toLocaleTimeString()}]`)
+      : '[' + t + ']';
+  },
+  link: (m: string): string => {
+    return gUseColor
+      ? '\n▷   ' +
+          chalk.hex(tcPurple)(
+            'https://github.com/arnog/chromatic/docs/errors/' + m + '.md'
+          )
+      : '\n▷   https://github.com/arnog/chromatic/docs/errors/' + m + '.md';
+  },
 };

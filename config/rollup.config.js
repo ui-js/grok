@@ -8,75 +8,75 @@ process.env.BUILD = process.env.BUILD || 'development';
 const PRODUCTION = process.env.BUILD === 'production';
 
 const TYPESCRIPT_OPTIONS = {
-    typescript: require('typescript'),
-    clean: PRODUCTION,
-    tsconfigOverride: {
-        compilerOptions: {
-            declaration: false,
-        },
+  typescript: require('typescript'),
+  clean: PRODUCTION,
+  tsconfigOverride: {
+    compilerOptions: {
+      declaration: false,
     },
+  },
 };
 
 const TERSER_OPTIONS = {
-    compress: {
-        drop_console: false,
-        drop_debugger: true,
-        ecma: 8, // Use "5" to support older browsers
-        module: true,
-        warnings: true,
-        passes: 2,
-        global_defs: {
-            ENV: JSON.stringify(process.env.BUILD),
-            VERSION: JSON.stringify(pkg.version || '0.0'),
-        },
+  compress: {
+    drop_console: false,
+    drop_debugger: true,
+    ecma: 8, // Use "5" to support older browsers
+    module: true,
+    warnings: true,
+    passes: 2,
+    global_defs: {
+      ENV: JSON.stringify(process.env.BUILD),
+      VERSION: JSON.stringify(pkg.version || '0.0'),
     },
+  },
 };
 export default [
-    {
-        input: 'src/grok-cli.ts',
-        output: {
-            file: 'bin/grok-cli',
-            format: 'cjs',
-            banner: '#!/usr/bin/env node',
-            sourcemap: !PRODUCTION,
-        },
-        plugins: [
-            resolve({
-                preferBuiltins: true,
-            }),
-            PRODUCTION && eslint(),
-            typescript(TYPESCRIPT_OPTIONS),
-            PRODUCTION && terser(TERSER_OPTIONS),
-            // copy({
-            //     targets: [{ src: 'package.json', dest: 'bin' }],
-            // }),
-        ],
-        watch: {
-            clearScreen: true,
-            exclude: 'node_modules/**',
-            include: ['src/**', 'examples/**'],
-        },
+  {
+    input: 'src/grok-cli.ts',
+    output: {
+      file: 'bin/grok-cli',
+      format: 'cjs',
+      banner: '#!/usr/bin/env node',
+      sourcemap: !PRODUCTION,
     },
-    {
-        input: 'src/grok.ts',
-        output: {
-            file: 'bin/grok.js',
-            format: 'cjs',
-            sourcemap: !PRODUCTION,
-        },
-        plugins: [
-            resolve({
-                preferBuiltins: true,
-            }),
-            PRODUCTION && eslint(),
-            typescript(TYPESCRIPT_OPTIONS),
-            PRODUCTION && terser(TERSER_OPTIONS),
-        ],
-        watch: {
-            clearScreen: false,
-            exclude: ['node_modules/**'],
-        },
+    plugins: [
+      resolve({
+        preferBuiltins: true,
+      }),
+      PRODUCTION && eslint(),
+      typescript(TYPESCRIPT_OPTIONS),
+      PRODUCTION && terser(TERSER_OPTIONS),
+      // copy({
+      //     targets: [{ src: 'package.json', dest: 'bin' }],
+      // }),
+    ],
+    watch: {
+      clearScreen: true,
+      exclude: 'node_modules/**',
+      include: ['src/**', 'examples/**'],
     },
+  },
+  {
+    input: 'src/grok.ts',
+    output: {
+      file: 'bin/grok.js',
+      format: 'cjs',
+      sourcemap: !PRODUCTION,
+    },
+    plugins: [
+      resolve({
+        preferBuiltins: true,
+      }),
+      PRODUCTION && eslint(),
+      typescript(TYPESCRIPT_OPTIONS),
+      PRODUCTION && terser(TERSER_OPTIONS),
+    ],
+    watch: {
+      clearScreen: false,
+      exclude: ['node_modules/**'],
+    },
+  },
 ];
 
 /*

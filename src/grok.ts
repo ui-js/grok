@@ -8,330 +8,328 @@ const fs = require('fs-extra');
 
 const MarkdownIt = require('markdown-it');
 const markdown = new MarkdownIt({
-    // See https://markdown-it.github.io/markdown-it/
-    html: true,
-    typographer: true,
-    highlight: function (str: string, lang: string): string {
-        if ((lang ?? 'typescript') && highlightJs.getLanguage(lang)) {
-            try {
-                const result = highlightJs.highlight(lang, str);
-                if (result.illegal) {
-                    console.group();
-                    console.error('Syntax error in sample code\n');
-                    console.error(result.illegalBy.msg.replace('\n', '\\n'));
-                    console.error('\n' + result.illegalBy.context);
-                    console.groupEnd();
-                }
-                return result.value;
-            } catch (err) {
-                console.error(err);
-            }
+  // See https://markdown-it.github.io/markdown-it/
+  html: true,
+  typographer: true,
+  highlight: function (str: string, lang: string): string {
+    if ((lang ?? 'typescript') && highlightJs.getLanguage(lang)) {
+      try {
+        const result = highlightJs.highlight(lang, str);
+        if (result.illegal) {
+          console.group();
+          console.error('Syntax error in sample code\n');
+          console.error(result.illegalBy.msg.replace('\n', '\\n'));
+          console.error('\n' + result.illegalBy.context);
+          console.groupEnd();
         }
+        return result.value;
+      } catch (err) {
+        console.error(err);
+      }
+    }
 
-        return ''; // use external default escaping
-    },
+    return ''; // use external default escaping
+  },
 });
 
 interface Options {
-    exclude?: string[]; // glob patterns of files to exclude, e.g. '**/*.test.ts'
-    outFile?: string;
+  exclude?: string[]; // glob patterns of files to exclude, e.g. '**/*.test.ts'
+  outFile?: string;
 
-    /** If the tsc compiler encounters an error while parsing the declaration files,
-     * attempt to continue nonetheless
-     */
-    ignoreErrors?: boolean;
-    // verbose?: boolean;
+  /** If the tsc compiler encounters an error while parsing the declaration files,
+   * attempt to continue nonetheless
+   */
+  ignoreErrors?: boolean;
+  // verbose?: boolean;
 
-    documentTemplate?:
-        | string
-        | ((substitutions: { [key: string]: any }) => string);
+  documentTemplate?:
+    | string
+    | ((substitutions: { [key: string]: any }) => string);
 
-    cssVariables: { [variable: string]: string };
+  cssVariables: { [variable: string]: string };
 
-    keywordSynonyms?: { [word: string]: string[] };
+  keywordSynonyms?: { [word: string]: string[] };
 
-    /**
-     * Prefix added to the value of a {@tutorial} tag to determine the
-     * URL to redirected to.
-     * For example, {@tutorial readme.html} with tutorialPath = 'https://example.com/docs'
-     * will redirect to 'https://example.com/docs/readme.html'
-     */
-    tutorialPath: string;
+  /**
+   * Prefix added to the value of a {@tutorial} tag to determine the
+   * URL to redirected to.
+   * For example, {@tutorial readme.html} with tutorialPath = 'https://example.com/docs'
+   * will redirect to 'https://example.com/docs/readme.html'
+   */
+  tutorialPath: string;
 
-    modules?: string[];
+  modules?: string[];
 
-    sdkName?: string;
+  sdkName?: string;
 }
 type Tag =
-    | 'alpha'
-    | 'beta'
-    | 'category'
-    | 'command'
-    | 'deprecated'
-    | 'eventproperty'
-    | 'experimental'
-    | 'hidden'
-    | 'param'
-    | 'ignore'
-    | 'internal'
-    | 'keywords'
-    | 'label'
-    | 'override'
-    | 'readonly'
-    | 'remarks'
-    | 'returns'
-    | 'sealed'
-    | 'virtual';
+  | 'alpha'
+  | 'beta'
+  | 'category'
+  | 'command'
+  | 'deprecated'
+  | 'eventproperty'
+  | 'experimental'
+  | 'hidden'
+  | 'param'
+  | 'ignore'
+  | 'internal'
+  | 'keywords'
+  | 'label'
+  | 'override'
+  | 'readonly'
+  | 'remarks'
+  | 'returns'
+  | 'sealed'
+  | 'virtual';
 
 type ReflectionKind =
-    | 0
-    | 1
-    | 2
-    | 4
-    | 8
-    | 16
-    | 32
-    | 64
-    | 128
-    | 256
-    | 512
-    | 1024
-    | 2048
-    | 4096
-    | 8192
-    | 16384
-    | 32768
-    | 65536
-    | 131072
-    | 262144
-    | 524288
-    | 1048576
-    | 2097152
-    | 4194304
-    | 8388608
-    | 16777216; // Reference
+  | 0
+  | 1
+  | 2
+  | 4
+  | 8
+  | 16
+  | 32
+  | 64
+  | 128
+  | 256
+  | 512
+  | 1024
+  | 2048
+  | 4096
+  | 8192
+  | 16384
+  | 32768
+  | 65536
+  | 131072
+  | 262144
+  | 524288
+  | 1048576
+  | 2097152
+  | 4194304
+  | 8388608
+  | 16777216; // Reference
 
 type Category = {
-    kind: ReflectionKind;
-    title: string;
-    children: Reflection[];
+  kind: ReflectionKind;
+  title: string;
+  children: Reflection[];
 };
 
 type Reflection = {
-    id?: number;
-    name?: string;
-    kind?: ReflectionKind;
-    type?:
-        | 'abstract'
-        | 'array'
-        | 'conditionals'
-        | 'index'
-        | 'indexedAccess'
-        | 'inferred'
-        | 'intrinsic'
-        | 'intersection'
-        | 'named-tuple-member'
-        | 'predicate'
-        | 'query'
-        | 'reference'
-        | 'reflection'
-        | 'stringLiteral'
-        | 'tuple'
-        | 'typeOperator'
-        | 'typeParameter'
-        | 'union'
-        | 'unknown'
-        | 'void'
-        | Reflection; // For kind = 32: Variable,
-    // 1024: Property, 4096: Call Signature, 16384: Constructor Signature
-    // 8192: Index Signature, 32768: Parameter, 131072: Type Parameter,
-    // 4194304: Type Alias
-    groups?: Reflection[]; // For type = 'groups'
-    children?: Reflection[];
-    title?: string; // For groups
-    comment?: {
-        tags?: { tag: Tag; text?: string }[];
-        shortText?: string;
-        text?: string;
-        returns?: string;
-    };
-    flags?: {
-        isAbstract?: boolean;
-        isPrivate?: boolean;
-        isProtected?: boolean;
-        isPublic?: boolean;
-        isExternal?: boolean;
-        isStatic?: boolean;
-    };
-    categories?: { title: string; children: number[] }[];
-    signatures?: Reflection[];
-    getSignature?: Reflection; // For accessors
-    setSignature?: Reflection; // For accessors
-    elementType?: Reflection;
-    element?: Reflection; // For 'named-tuple-member'
-    objectType?: Reflection;
-    indexType?: Reflection;
-    typeArguments?: Reflection[];
-    types?: Reflection[];
-    declaration?: Reflection;
-    operator?: string; // For type 'typeOperator'
-    target?: Reflection; // For type 'typeOperator'
-    constraint?: Reflection;
-    value?: string; // For type === 'stringLiteral'
-    elements?: Reflection[]; // For type === 'tuple'
-    defaultValue?: string; // For kind === 16 (Enum Member)
-    indexSignature?: Reflection[];
-    parameters?: Reflection[];
-    typeParameter?: Reflection[];
-    extendedTypes?: Reflection[]; // For kind = : Class
-    implementedTypes?: Reflection[]; // For kind = : Class
-    extendedBy?: Reflection[]; // For kind = : Class
-    implementedBy?: Reflection[]; // For kind = : Class
-    queryType?: Reflection; // For kind = 'query'
-    inheritedFrom?: Reflection; // For kind = 'method', parent class
-    implementationOf?: Reflection; // For kind = 'method', interface
-    sources?: {
-        fileName: string;
-        character: number;
-        line: number;
-    }[]; // external global references, e.g. "HTMLElement"
+  id?: number;
+  name?: string;
+  kind?: ReflectionKind;
+  type?:
+    | 'abstract'
+    | 'array'
+    | 'conditionals'
+    | 'index'
+    | 'indexedAccess'
+    | 'inferred'
+    | 'intrinsic'
+    | 'intersection'
+    | 'named-tuple-member'
+    | 'predicate'
+    | 'query'
+    | 'reference'
+    | 'reflection'
+    | 'stringLiteral'
+    | 'tuple'
+    | 'typeOperator'
+    | 'typeParameter'
+    | 'union'
+    | 'unknown'
+    | 'void'
+    | Reflection; // For kind = 32: Variable,
+  // 1024: Property, 4096: Call Signature, 16384: Constructor Signature
+  // 8192: Index Signature, 32768: Parameter, 131072: Type Parameter,
+  // 4194304: Type Alias
+  groups?: Reflection[]; // For type = 'groups'
+  children?: Reflection[];
+  title?: string; // For groups
+  comment?: {
+    tags?: { tag: Tag; text?: string }[];
+    shortText?: string;
+    text?: string;
+    returns?: string;
+  };
+  flags?: {
+    isAbstract?: boolean;
+    isPrivate?: boolean;
+    isProtected?: boolean;
+    isPublic?: boolean;
+    isExternal?: boolean;
+    isStatic?: boolean;
+  };
+  categories?: { title: string; children: number[] }[];
+  signatures?: Reflection[];
+  getSignature?: Reflection; // For accessors
+  setSignature?: Reflection; // For accessors
+  elementType?: Reflection;
+  element?: Reflection; // For 'named-tuple-member'
+  objectType?: Reflection;
+  indexType?: Reflection;
+  typeArguments?: Reflection[];
+  types?: Reflection[];
+  declaration?: Reflection;
+  operator?: string; // For type 'typeOperator'
+  target?: Reflection; // For type 'typeOperator'
+  constraint?: Reflection;
+  value?: string; // For type === 'stringLiteral'
+  elements?: Reflection[]; // For type === 'tuple'
+  defaultValue?: string; // For kind === 16 (Enum Member)
+  indexSignature?: Reflection[];
+  parameters?: Reflection[];
+  typeParameter?: Reflection[];
+  extendedTypes?: Reflection[]; // For kind = : Class
+  implementedTypes?: Reflection[]; // For kind = : Class
+  extendedBy?: Reflection[]; // For kind = : Class
+  implementedBy?: Reflection[]; // For kind = : Class
+  queryType?: Reflection; // For kind = 'query'
+  inheritedFrom?: Reflection; // For kind = 'method', parent class
+  implementationOf?: Reflection; // For kind = 'method', interface
+  sources?: {
+    fileName: string;
+    character: number;
+    line: number;
+  }[]; // external global references, e.g. "HTMLElement"
 };
 
 type Permalink = {
-    anchor: string;
-    title: string;
-    document?: string;
+  anchor: string;
+  title: string;
+  document?: string;
 };
 
 function span(
-    value: string,
-    className:
-        | 'subhead'
-        | 'head'
-        | 'head deprecated'
-        | 'stack'
-        | 'flags'
-        | 'keyword'
-        | 'modifier'
-        | 'modifier-tag'
-        | 'red modifier-tag'
-        | 'orange modifier-tag'
-        | 'tag-name'
-        | 'class-label'
-        | 'string-literal'
-        | 'deprecated'
-        | 'highlighting-mark-container'
-        | ''
+  value: string,
+  className:
+    | 'subhead'
+    | 'head'
+    | 'head deprecated'
+    | 'stack'
+    | 'flags'
+    | 'keyword'
+    | 'modifier'
+    | 'modifier-tag'
+    | 'red modifier-tag'
+    | 'orange modifier-tag'
+    | 'tag-name'
+    | 'class-label'
+    | 'string-literal'
+    | 'deprecated'
+    | 'highlighting-mark-container'
+    | ''
 ) {
-    if (!className) return '<span>' + value + '</span>';
-    return '<span class="' + className + '">' + value + '</span>';
+  if (!className) return '<span>' + value + '</span>';
+  return '<span class="' + className + '">' + value + '</span>';
 }
 
 function div(content: string, className?: string) {
-    if (className) {
-        return '\n<div class="' + className + '">' + content + '</div>\n';
-    }
-    return '\n<div>' + content + '</div>\n';
+  if (className) {
+    return '\n<div class="' + className + '">' + content + '</div>\n';
+  }
+  return '\n<div>' + content + '</div>\n';
 }
 
 function punct(value: string): string {
-    return '<span class="punctuation">' + value + '</span>';
+  return '<span class="punctuation">' + value + '</span>';
 }
 
 function keyword(k: string): string {
-    return '<span class="keyword">' + k + '</span>';
+  return '<span class="keyword">' + k + '</span>';
 }
 
 function section(
-    content: string,
-    options?: { permalink?: Permalink; className?: string; keywords?: string }
+  content: string,
+  options?: { permalink?: Permalink; className?: string; keywords?: string }
 ): string {
-    let result = '<section';
-    if (options?.keywords) {
-        result += ' data-keywords="' + options.keywords.toLowerCase() + '"';
-    }
-    if (options?.permalink?.anchor) {
-        result += ' id="' + encodeURIComponent(options.permalink.anchor) + '"';
-    }
-    if (options?.className) {
-        result += ' class="' + options.className + '"';
-    }
-    result += '>' + content;
-    return result + '\n</section>\n';
+  let result = '<section';
+  if (options?.keywords) {
+    result += ' data-keywords="' + options.keywords.toLowerCase() + '"';
+  }
+  if (options?.permalink?.anchor) {
+    result += ' id="' + encodeURIComponent(options.permalink.anchor) + '"';
+  }
+  if (options?.className) {
+    result += ' class="' + options.className + '"';
+  }
+  result += '>' + content;
+  return result + '\n</section>\n';
 }
 
 function list(
-    items: (string | [string, string])[],
-    className?: string
+  items: (string | [string, string])[],
+  className?: string
 ): string {
-    if (!items || items.length === 0) return '';
-    let result = '';
-    if (Array.isArray(items[0])) {
-        const definitions = items as [string, string][];
-        if (className) {
-            result += '\n<dl class="' + className + '">\n';
-        } else {
-            result += '\n<dl>\n';
-        }
-        result += definitions
-            .map(
-                (def) => '\n<dt>' + def[0] + '</dt>\n<dd>' + def[1] + '</dd>\n'
-            )
-            .join('');
-        result += '\n</dl>\n';
+  if (!items || items.length === 0) return '';
+  let result = '';
+  if (Array.isArray(items[0])) {
+    const definitions = items as [string, string][];
+    if (className) {
+      result += '\n<dl class="' + className + '">\n';
     } else {
-        if (className) {
-            result += '\n<ul class="' + className + '">\n';
-        } else {
-            result += '\n<ul>\n';
-        }
-        result += items.map((item) => '\n<li>' + item + '</li>\n').join('');
-        result += '\n</ul>\n';
+      result += '\n<dl>\n';
     }
-    return result;
+    result += definitions
+      .map((def) => '\n<dt>' + def[0] + '</dt>\n<dd>' + def[1] + '</dd>\n')
+      .join('');
+    result += '\n</dl>\n';
+  } else {
+    if (className) {
+      result += '\n<ul class="' + className + '">\n';
+    } else {
+      result += '\n<ul>\n';
+    }
+    result += items.map((item) => '\n<li>' + item + '</li>\n').join('');
+    result += '\n</ul>\n';
+  }
+  return result;
 }
 
 function highlightingMark(content: string): string {
-    return span(
-        content +
-            '<svg class="highlighting-mark"><use xlink:href="#highlighting-mark-' +
-            (Math.floor(3 * Math.random()) + 1) +
-            '"></use></svg>',
-        'highlighting-mark-container'
-    );
+  return span(
+    content +
+      '<svg class="highlighting-mark"><use xlink:href="#highlighting-mark-' +
+      (Math.floor(3 * Math.random()) + 1) +
+      '"></use></svg>',
+    'highlighting-mark-container'
+  );
 }
 
 function heading(
-    level: number,
-    subhead: string,
-    head: string,
-    permalink?: Permalink,
-    options?: { deprecated?: boolean; className?: string }
+  level: number,
+  subhead: string,
+  head: string,
+  permalink?: Permalink,
+  options?: { deprecated?: boolean; className?: string }
 ) {
-    const tag = 'h' + Number(level).toString();
+  const tag = 'h' + Number(level).toString();
 
-    let body = subhead ? span(subhead, 'subhead') : '';
+  let body = subhead ? span(subhead, 'subhead') : '';
 
-    if (permalink?.anchor) {
-        body += highlightingMark(
-            span(head, options?.deprecated ? 'head deprecated' : 'head')
-        );
-        body = span(body, 'stack');
-        body += renderPermalinkAnchor(permalink);
-    } else {
-        body += span(head, options?.deprecated ? 'head deprecated' : 'head');
-        body = span(body, 'stack');
-    }
-    return (
-        '<' +
-        tag +
-        (options?.className ? ' class="' + options.className + '"' : '') +
-        '>' +
-        body +
-        '</' +
-        tag +
-        '>'
+  if (permalink?.anchor) {
+    body += highlightingMark(
+      span(head, options?.deprecated ? 'head deprecated' : 'head')
     );
+    body = span(body, 'stack');
+    body += renderPermalinkAnchor(permalink);
+  } else {
+    body += span(head, options?.deprecated ? 'head deprecated' : 'head');
+    body = span(body, 'stack');
+  }
+  return (
+    '<' +
+    tag +
+    (options?.className ? ' class="' + options.className + '"' : '') +
+    '>' +
+    body +
+    '</' +
+    tag +
+    '>'
+  );
 }
 
 // A "reflection" is some type information.
@@ -340,32 +338,32 @@ function heading(
 // data structure (from 'root')
 
 function getReflectionByID(id: number, root = gNodes): Reflection {
-    // A node with a given id can either be the actual node
-    // or a **reference** to this node. Ignore references.
-    if (root.type !== 'reference' && root.id === id) return root;
-    let result: Reflection;
-    if (
-        root.children?.some((x) => {
-            result = getReflectionByID(id, x);
-            return result !== null;
-        }) ??
-        false
-    ) {
-        return result;
-    }
-    return null;
+  // A node with a given id can either be the actual node
+  // or a **reference** to this node. Ignore references.
+  if (root.type !== 'reference' && root.id === id) return root;
+  let result: Reflection;
+  if (
+    root.children?.some((x) => {
+      result = getReflectionByID(id, x);
+      return result !== null;
+    }) ??
+    false
+  ) {
+    return result;
+  }
+  return null;
 }
 
 function getReflectionsByName(name: string, root?: Reflection): Reflection[] {
-    if (!root) root = gNodes;
-    let result = [];
-    if (getName(root) === name) result.push(root);
-    if (root.children) {
-        root.children.forEach((x) => {
-            result = [...result, ...getReflectionsByName(name, x)];
-        });
-    }
-    return result;
+  if (!root) root = gNodes;
+  let result = [];
+  if (getName(root) === name) result.push(root);
+  if (root.children) {
+    root.children.forEach((x) => {
+      result = [...result, ...getReflectionsByName(name, x)];
+    });
+  }
+  return result;
 }
 
 /**
@@ -373,49 +371,49 @@ function getReflectionsByName(name: string, root?: Reflection): Reflection[] {
  * Return all the matching nodes.
  */
 function getReflectionByName(
-    name: string,
-    root?: Reflection,
-    kind?: number | string
+  name: string,
+  root?: Reflection,
+  kind?: number | string
 ): Reflection {
-    let candidates = [];
-    candidates = getReflectionsByName(name, root);
-    if (candidates.length > 0) {
-        candidates.sort((a, b) => b.kind - a.kind);
-        if (typeof kind === 'number') {
-            candidates = candidates.filter((x) => (x.kind & kind) !== 0);
-        } else if (kind === 'static') {
-            candidates = candidates.filter(
-                (x) => x.kind === 2048 && hasFlag(x, 'isStatic')
-            );
-        } else if (typeof kind === 'string') {
-            const numKind = NUMERIC_KIND[kind];
-            candidates = candidates.filter((x) => (x.kind & numKind) !== 0);
-        }
-        if (candidates.length > 0) {
-            return candidates[0];
-        }
+  let candidates = [];
+  candidates = getReflectionsByName(name, root);
+  if (candidates.length > 0) {
+    candidates.sort((a, b) => b.kind - a.kind);
+    if (typeof kind === 'number') {
+      candidates = candidates.filter((x) => (x.kind & kind) !== 0);
+    } else if (kind === 'static') {
+      candidates = candidates.filter(
+        (x) => x.kind === 2048 && hasFlag(x, 'isStatic')
+      );
+    } else if (typeof kind === 'string') {
+      const numKind = NUMERIC_KIND[kind];
+      candidates = candidates.filter((x) => (x.kind & numKind) !== 0);
     }
-    return null;
+    if (candidates.length > 0) {
+      return candidates[0];
+    }
+  }
+  return null;
 }
 
 const NUMERIC_KIND = {
-    namespace: 2,
-    enum: 4,
-    variable: 32,
-    function: 64,
-    class: 128,
-    interface: 256,
-    instance: 1024 | 2048 | 262144, // property, method or getter/setter
-    static: 1024 | 2048, // property or method
-    type: 4194304,
+  namespace: 2,
+  enum: 4,
+  variable: 32,
+  function: 64,
+  class: 128,
+  interface: 256,
+  instance: 1024 | 2048 | 262144, // property, method or getter/setter
+  static: 1024 | 2048, // property or method
+  type: 4194304,
 };
 
 function getNameSelector(segment: string): [string, string] {
-    const m = segment.match(/^\(([^\:]+)(\:([^\)]+))?\)$/);
-    if (m) {
-        return [m[1], m[3]];
-    }
-    return [segment, undefined];
+  const m = segment.match(/^\(([^\:]+)(\:([^\)]+))?\)$/);
+  if (m) {
+    return [m[1], m[3]];
+  }
+  return [segment, undefined];
 }
 
 /*
@@ -431,25 +429,25 @@ function getNameSelector(segment: string): [string, string] {
  */
 
 function getReflectionByLink(link: string, root?: Reflection): Reflection {
-    const segments = link.split('.');
-    if (segments.length === 1) {
-        // No path: look at children, then siblings, then parent, then global
-        const [name, kind] = getNameSelector(segments[0]);
-        return (
-            getReflectionByName(name, root, kind) ||
-            getReflectionByName(name, getParent(root), kind) ||
-            getReflectionByName(name, null, kind)
-        );
-    }
+  const segments = link.split('.');
+  if (segments.length === 1) {
+    // No path: look at children, then siblings, then parent, then global
+    const [name, kind] = getNameSelector(segments[0]);
+    return (
+      getReflectionByName(name, root, kind) ||
+      getReflectionByName(name, getParent(root), kind) ||
+      getReflectionByName(name, null, kind)
+    );
+  }
 
-    const lastSegment = segments.pop();
-    let node = null;
-    for (const segment of segments) {
-        // Find the next path segment
-        const [name, kind] = getNameSelector(segment);
-        node = getReflectionByName(name, node, kind);
-    }
-    return getReflectionByLink(lastSegment, node);
+  const lastSegment = segments.pop();
+  let node = null;
+  for (const segment of segments) {
+    // Find the next path segment
+    const [name, kind] = getNameSelector(segment);
+    node = getReflectionByName(name, node, kind);
+  }
+  return getReflectionByLink(lastSegment, node);
 }
 
 /**
@@ -458,94 +456,94 @@ function getReflectionByLink(link: string, root?: Reflection): Reflection {
  * result[1] is the parent, etc..
  */
 function getAncestors(node: Reflection, root = gNodes): Reflection[] {
-    if (!node) return null;
-    if (node.id === root.id) return [root];
-    if (root.children) {
-        for (const child of root.children) {
-            const ancestors = getAncestors(node, child);
-            if (ancestors) {
-                return [...ancestors, root];
-            }
-        }
+  if (!node) return null;
+  if (node.id === root.id) return [root];
+  if (root.children) {
+    for (const child of root.children) {
+      const ancestors = getAncestors(node, child);
+      if (ancestors) {
+        return [...ancestors, root];
+      }
     }
-    return null;
+  }
+  return null;
 }
 
 function getParent(node: Reflection): Reflection {
-    return getAncestors(node)?.[1] ?? null;
+  return getAncestors(node)?.[1] ?? null;
 }
 
 /**
  * Return all the children matching the specified list of IDs
  */
 function getChildrenByID(node: Reflection, children: number[]): Reflection[] {
-    return children.map(
-        (x) => node.children.filter((child) => child.id === x)[0]
-    );
+  return children.map(
+    (x) => node.children.filter((child) => child.id === x)[0]
+  );
 }
 
 function getName(node: Reflection): string {
-    if (node.kind === 1) {
-        return getModuleName(node);
-    }
-    return node.name;
+  if (node.kind === 1) {
+    return getModuleName(node);
+  }
+  return node.name;
 }
 
 function everyStringLiteral(nodes: Reflection[]): boolean {
-    return nodes.every((x) => x.type === 'stringLiteral');
+  return nodes.every((x) => x.type === 'stringLiteral');
 }
 
 function sortOtherCategoryAtEnd(categories: Category[]): Category[] {
-    return categories.sort((a, b): number => {
-        if (a.title === b.title) return 0;
-        if (a.title === 'Other') return 1;
-        if (b.title === 'Other') return -1;
-        return a.title < b.title ? -1 : 1;
-    });
+  return categories.sort((a, b): number => {
+    if (a.title === b.title) return 0;
+    if (a.title === 'Other') return 1;
+    if (b.title === 'Other') return -1;
+    return a.title < b.title ? -1 : 1;
+  });
 }
 
 const GROUP_KIND_ORDER = {
-    1: 0, // modules
-    512: 1, // constructor
+  1: 0, // modules
+  512: 1, // constructor
 
-    64: 2, // function
+  64: 2, // function
 
-    2048: 3, // method
-    262144: 3, // setter/getter (accessor)
-    524288: 3, // get signature
-    1048576: 3, // set signature
+  2048: 3, // method
+  262144: 3, // setter/getter (accessor)
+  524288: 3, // get signature
+  1048576: 3, // set signature
 
-    1024: 4, // property
-    32: 5, // variable/properties
-    256: 6, // interface
-    128: 7, // class
-    2: 8, // namespace
-    4194304: 9, // type alias
-    4: 10, // enum
+  1024: 4, // property
+  32: 5, // variable/properties
+  256: 6, // interface
+  128: 7, // class
+  2: 8, // namespace
+  4194304: 9, // type alias
+  4: 10, // enum
 
-    16777216: 11, // Reference
+  16777216: 11, // Reference
 };
 
 function sortGroups(groups: Reflection[]): Reflection[][] {
-    const result = [];
-    groups.forEach((x) => {
-        const kindOrder = GROUP_KIND_ORDER[x.kind] ?? 12;
-        if (result[kindOrder]) {
-            result[kindOrder].push(x);
-        } else {
-            result[kindOrder] = [x];
-        }
-    });
-    return result.filter((x) => !!x);
+  const result = [];
+  groups.forEach((x) => {
+    const kindOrder = GROUP_KIND_ORDER[x.kind] ?? 12;
+    if (result[kindOrder]) {
+      result[kindOrder].push(x);
+    } else {
+      result[kindOrder] = [x];
+    }
+  });
+  return result.filter((x) => !!x);
 
-    // return groups.sort((a, b) => {
-    //     console.assert(GROUP_KIND_ORDER[b.kind] && GROUP_KIND_ORDER[a.kind]);
-    //     return GROUP_KIND_ORDER[a.kind] === GROUP_KIND_ORDER[b.kind]
-    //         ? 0
-    //         : GROUP_KIND_ORDER[a.kind] < GROUP_KIND_ORDER[b.kind]
-    //         ? -1
-    //         : +1;
-    // });
+  // return groups.sort((a, b) => {
+  //     console.assert(GROUP_KIND_ORDER[b.kind] && GROUP_KIND_ORDER[a.kind]);
+  //     return GROUP_KIND_ORDER[a.kind] === GROUP_KIND_ORDER[b.kind]
+  //         ? 0
+  //         : GROUP_KIND_ORDER[a.kind] < GROUP_KIND_ORDER[b.kind]
+  //         ? -1
+  //         : +1;
+  // });
 }
 
 /**
@@ -557,47 +555,45 @@ function sortGroups(groups: Reflection[]): Reflection[][] {
  */
 
 function getCategories(node: Reflection, kind: ReflectionKind): Category[] {
-    let result = [];
-    const children = node.groups?.filter((x) => (x.kind & kind) !== 0);
-    if (!children || children.length !== 1) {
-        // No groups. Are there categories?
-        if (node.categories) {
-            return sortOtherCategoryAtEnd(
-                (node.categories as unknown) as Category[]
-            );
-        }
-        return [
-            {
-                kind,
-                title: '',
-                children: node.children.filter((x) => (x.kind & kind) !== 0),
-            },
-        ];
+  let result = [];
+  const children = node.groups?.filter((x) => (x.kind & kind) !== 0);
+  if (!children || children.length !== 1) {
+    // No groups. Are there categories?
+    if (node.categories) {
+      return sortOtherCategoryAtEnd((node.categories as unknown) as Category[]);
     }
-    if (children[0].categories) {
-        result = children[0].categories.map((category) => {
-            return {
-                kind,
-                title: category.title,
-                children: getChildrenByID(node, category.children),
-            };
-        });
-        result = sortOtherCategoryAtEnd(result);
-    } else {
-        // No categories, return all the children of the specified kind
-        console.assert(typeof children[0].children[0] === 'number');
-        result = [
-            {
-                kind,
-                title: '',
-                children: getChildrenByID(
-                    node,
-                    (children[0].children as unknown) as number[]
-                ),
-            },
-        ];
-    }
-    return result;
+    return [
+      {
+        kind,
+        title: '',
+        children: node.children.filter((x) => (x.kind & kind) !== 0),
+      },
+    ];
+  }
+  if (children[0].categories) {
+    result = children[0].categories.map((category) => {
+      return {
+        kind,
+        title: category.title,
+        children: getChildrenByID(node, category.children),
+      };
+    });
+    result = sortOtherCategoryAtEnd(result);
+  } else {
+    // No categories, return all the children of the specified kind
+    console.assert(typeof children[0].children[0] === 'number');
+    result = [
+      {
+        kind,
+        title: '',
+        children: getChildrenByID(
+          node,
+          (children[0].children as unknown) as number[]
+        ),
+      },
+    ];
+  }
+  return result;
 }
 
 // See https://github.com/microsoft/tsdoc/blob/master/spec/code-snippets/DeclarationReferences.ts
@@ -625,83 +621,81 @@ function getCategories(node: Reflection, kind: ReflectionKind): Category[] {
 // - title: a string to be displayed as the name of the URL.
 
 function makePermalink(node: Reflection): Permalink | null {
-    // We need the actual node (not a reference)
-    // This is important for shouldIgnore(). It will return false for a reference
-    // as the tags are not accessible on a reference node
-    node = getReflectionByID(node.id);
+  // We need the actual node (not a reference)
+  // This is important for shouldIgnore(). It will return false for a reference
+  // as the tags are not accessible on a reference node
+  node = getReflectionByID(node.id);
 
-    if (!node || node.kind === 0) {
-        // kind = 0 -> file
-        return null;
-    }
+  if (!node || node.kind === 0) {
+    // kind = 0 -> file
+    return null;
+  }
 
-    if (node.sources?.[0]?.fileName.endsWith('/lib.dom.d.ts')) {
-        // This symbol is referenced from the DOM library (e.g. HTMLElement)
-        return {
-            document:
-                'https://developer.mozilla.org/en-US/docs/Web/API/' + node.name,
-            anchor: '',
-            title: node.name,
-        };
-    }
+  if (node.sources?.[0]?.fileName.endsWith('/lib.dom.d.ts')) {
+    // This symbol is referenced from the DOM library (e.g. HTMLElement)
+    return {
+      document: 'https://developer.mozilla.org/en-US/docs/Web/API/' + node.name,
+      anchor: '',
+      title: node.name,
+    };
+  }
 
-    const parent = getParent(node);
-    if (!parent) {
-        // Some nodes are not in the tree of nodes and are not reachable
-        // For example temporary types that are not named, as in:
-        // `a: {b:T}`: `{b:T}` is an unreachable node
-        return { anchor: '', title: node.name ?? '' };
-    }
-    let result;
-    if (node.kind === 512) {
-        // Special syntax for constructors
-        const grandparentPermalink = makePermalink(getParent(parent));
-        if (grandparentPermalink) {
-            result = {
-                anchor:
-                    (grandparentPermalink.anchor
-                        ? grandparentPermalink.anchor + '.'
-                        : '') +
-                    parent.name +
-                    ':constructor',
-                title: 'new ' + parent.name + '()',
-            };
-        } else {
-            result = {
-                anchor: parent.name + ':constructor',
-                title: 'new ' + parent.name + '()',
-            };
-        }
+  const parent = getParent(node);
+  if (!parent) {
+    // Some nodes are not in the tree of nodes and are not reachable
+    // For example temporary types that are not named, as in:
+    // `a: {b:T}`: `{b:T}` is an unreachable node
+    return { anchor: '', title: node.name ?? '' };
+  }
+  let result;
+  if (node.kind === 512) {
+    // Special syntax for constructors
+    const grandparentPermalink = makePermalink(getParent(parent));
+    if (grandparentPermalink) {
+      result = {
+        anchor:
+          (grandparentPermalink.anchor
+            ? grandparentPermalink.anchor + '.'
+            : '') +
+          parent.name +
+          ':constructor',
+        title: 'new ' + parent.name + '()',
+      };
     } else {
-        const qualifiedSymbol = getQualifiedSymbol(parent, node);
-        const parentPermalink = makePermalink(parent);
-        const nodeName = getName(node);
-        result = parentPermalink
-            ? {
-                  anchor:
-                      (parentPermalink.anchor
-                          ? parentPermalink.anchor + '.'
-                          : '') + qualifiedSymbol,
-                  title: parentPermalink.title + '.' + nodeName,
-              }
-            : {
-                  anchor: qualifiedSymbol,
-                  title: nodeName,
-              };
-        // There's a bug in typedoc:
-        // https://github.com/TypeStrong/typedoc/issues/1284
-        // exported modules are returned as 'namespace' with a stringLiteral value
-        // if (
-        //     parent.kind === 1 ||
-        //     (parent.kind === 2 && /^"(.*)"$/.test(parent.name))
-        // ) {
-        //     result.title = nodeName;
-        // }
+      result = {
+        anchor: parent.name + ':constructor',
+        title: 'new ' + parent.name + '()',
+      };
     }
-    if (shouldIgnore(node)) {
-        result.anchor = '';
-    }
-    return result;
+  } else {
+    const qualifiedSymbol = getQualifiedSymbol(parent, node);
+    const parentPermalink = makePermalink(parent);
+    const nodeName = getName(node);
+    result = parentPermalink
+      ? {
+          anchor:
+            (parentPermalink.anchor ? parentPermalink.anchor + '.' : '') +
+            qualifiedSymbol,
+          title: parentPermalink.title + '.' + nodeName,
+        }
+      : {
+          anchor: qualifiedSymbol,
+          title: nodeName,
+        };
+    // There's a bug in typedoc:
+    // https://github.com/TypeStrong/typedoc/issues/1284
+    // exported modules are returned as 'namespace' with a stringLiteral value
+    // if (
+    //     parent.kind === 1 ||
+    //     (parent.kind === 2 && /^"(.*)"$/.test(parent.name))
+    // ) {
+    //     result.title = nodeName;
+    // }
+  }
+  if (shouldIgnore(node)) {
+    result.anchor = '';
+  }
+  return result;
 }
 
 /**
@@ -712,23 +706,21 @@ function makePermalink(node: Reflection): Permalink | null {
  * - title: a string
  */
 function renderPermalink(permalink: Permalink, title?: string): string {
-    if (!permalink) return '';
-    title = title ?? permalink.title;
-    if (permalink.document && permalink.anchor) {
-        // This is an external reference (with an anchor)
-        return `<a href="${permalink.document}#${encodeURIComponent(
-            permalink.anchor
-        )}">${title}</a>`;
-    } else if (permalink.document) {
-        // This is an external reference (without anchor)
-        return `<a href="${permalink.document}">${title}</a>`;
-    } else if (permalink.anchor) {
-        // This is a reference to a local item (in this document)
-        return `<a href="#${encodeURIComponent(
-            permalink.anchor
-        )}">${title}</a>`;
-    }
-    return title;
+  if (!permalink) return '';
+  title = title ?? permalink.title;
+  if (permalink.document && permalink.anchor) {
+    // This is an external reference (with an anchor)
+    return `<a href="${permalink.document}#${encodeURIComponent(
+      permalink.anchor
+    )}">${title}</a>`;
+  } else if (permalink.document) {
+    // This is an external reference (without anchor)
+    return `<a href="${permalink.document}">${title}</a>`;
+  } else if (permalink.anchor) {
+    // This is a reference to a local item (in this document)
+    return `<a href="#${encodeURIComponent(permalink.anchor)}">${title}</a>`;
+  }
+  return title;
 }
 
 /**
@@ -736,17 +728,17 @@ function renderPermalink(permalink: Permalink, title?: string): string {
  * in the card header.
  */
 function renderPermalinkAnchor(permalink: Permalink): string {
-    // This should only be called for items that are in this document,
-    // so the permalink.document should be empty.
-    console.assert(!permalink.document);
+  // This should only be called for items that are in this document,
+  // so the permalink.document should be empty.
+  console.assert(!permalink.document);
 
-    return (
-        '<a class="permalink" href="#' +
-        encodeURIComponent(permalink.anchor) +
-        '" title="Permalink"><span class="sr-only"> Permalink </span>' +
-        '<svg><use xlink:href="#link"></use></svg>' +
-        '</a>'
-    );
+  return (
+    '<a class="permalink" href="#' +
+    encodeURIComponent(permalink.anchor) +
+    '" title="Permalink"><span class="sr-only"> Permalink </span>' +
+    '<svg><use xlink:href="#link"></use></svg>' +
+    '</a>'
+  );
 }
 
 /**
@@ -763,94 +755,87 @@ function renderPermalinkAnchor(permalink: Permalink): string {
  * a table with 1 item in it)
  */
 function renderIndex(
-    node: Reflection,
-    title?: string,
-    categories?: Category[],
-    options?: { symbolSuffix?: string }
+  node: Reflection,
+  title?: string,
+  categories?: Category[],
+  options?: { symbolSuffix?: string }
 ) {
-    if (!categories || categories.length === 0) return '';
-    let result = '';
-    if (title) {
-        result = heading(3, getQualifiedName(node), title);
-    }
+  if (!categories || categories.length === 0) return '';
+  let result = '';
+  if (title) {
+    result = heading(3, getQualifiedName(node), title);
+  }
 
-    // Don't display the index if there's only one item in it
-    if (
-        categories.length === 1 &&
-        filterInherited(filterPrivate(categories[0].children)).length <= 1
-    ) {
-        return result;
-    }
+  // Don't display the index if there's only one item in it
+  if (
+    categories.length === 1 &&
+    filterInherited(filterPrivate(categories[0].children)).length <= 1
+  ) {
+    return result;
+  }
 
-    options = options ?? { symbolSuffix: '' }; // Could be '()' for functions/methods
+  options = options ?? { symbolSuffix: '' }; // Could be '()' for functions/methods
 
-    return (
-        result +
-        categories
-            .map((category) => {
-                let r = '';
-                if (category.title) {
-                    r += `\n\n<h4>${category.title}</h4>\n`;
-                }
-                let items = category.children.map((x) =>
-                    // Sometimes the children can be ID (for 'Types') for example
-                    typeof x === 'number' ? getReflectionByID(x) : x
-                );
-                items = items.filter((x) => {
-                    if (
-                        !x.inheritedFrom &&
-                        x.name?.[0] !== '#' &&
-                        !shouldIgnore(x)
-                    ) {
-                        if (x.signatures) {
-                            return (
-                                x.signatures.filter((x) => !shouldIgnore(x))
-                                    .length > 0
-                            );
-                        }
-                        return true;
-                    }
-                    return false;
-                });
+  return (
+    result +
+    categories
+      .map((category) => {
+        let r = '';
+        if (category.title) {
+          r += `\n\n<h4>${category.title}</h4>\n`;
+        }
+        let items = category.children.map((x) =>
+          // Sometimes the children can be ID (for 'Types') for example
+          typeof x === 'number' ? getReflectionByID(x) : x
+        );
+        items = items.filter((x) => {
+          if (!x.inheritedFrom && x.name?.[0] !== '#' && !shouldIgnore(x)) {
+            if (x.signatures) {
+              return x.signatures.filter((x) => !shouldIgnore(x)).length > 0;
+            }
+            return true;
+          }
+          return false;
+        });
 
-                r +=
-                    '\n<div class="index">' +
-                    list(
-                        items.map((x) =>
-                            renderPermalink(
-                                makePermalink(x),
-                                getName(x) + options.symbolSuffix
-                            )
-                        )
-                    ) +
-                    '\n</div>\n';
-                return r;
-            })
-            .join('\n')
-    );
+        r +=
+          '\n<div class="index">' +
+          list(
+            items.map((x) =>
+              renderPermalink(
+                makePermalink(x),
+                getName(x) + options.symbolSuffix
+              )
+            )
+          ) +
+          '\n</div>\n';
+        return r;
+      })
+      .join('\n')
+  );
 }
 
 // A flag is usually a typescript keyword modifying an entry,
 // for example 'protected' -> 'isProtected' or 'optional' -> 'isOptional'
 function hasFlag(
-    node: Reflection,
-    flag: 'isProtected' | 'isOptional' | 'isStatic' | 'isAbstract' | 'isRest'
+  node: Reflection,
+  flag: 'isProtected' | 'isOptional' | 'isStatic' | 'isAbstract' | 'isRest'
 ): boolean {
-    return node?.flags?.[flag];
+  return node?.flags?.[flag];
 }
 
 // A tag is a JSDOC notation, such as '@param' or '@example'
 // See https://typedoc.org/guides/doccomments/
 function getTag(node: Reflection, tag: Tag): string {
-    if (node?.comment?.tags) {
-        const result = node.comment.tags.filter((x) => x.tag === tag);
-        // It *could* happen, but we're not ready to deal with that...
-        console.assert(result.length <= 1);
-        if (result.length === 1) {
-            return result[0].text || '';
-        }
+  if (node?.comment?.tags) {
+    const result = node.comment.tags.filter((x) => x.tag === tag);
+    // It *could* happen, but we're not ready to deal with that...
+    console.assert(result.length <= 1);
+    if (result.length === 1) {
+      return result[0].text || '';
     }
-    return '';
+  }
+  return '';
 }
 
 /**
@@ -858,122 +843,120 @@ function getTag(node: Reflection, tag: Tag): string {
  */
 
 function hasTag(node: Reflection, tag: Tag) {
-    return (
-        node?.comment?.tags &&
-        node.comment.tags.filter((x) => x.tag === tag).length > 0
-    );
+  return (
+    node?.comment?.tags &&
+    node.comment.tags.filter((x) => x.tag === tag).length > 0
+  );
 }
 
 function getKeywords(node: Reflection): string[] {
-    if (node.signatures && !node.comment) {
-        return getKeywords(node.signatures[0]);
-    }
-    let keywords = getTag(node, 'keywords');
-    if (!keywords && hasTag(node, 'keyword' as any)) {
-        console.warn(
-            'The tag for keywords is "@keywords", not "@keyword" ',
-            getQualifiedName(node)
-        );
-        keywords = getTag(node, 'keyword' as any);
-    }
-
-    let result = (keywords ?? '').split(',');
-
-    result.push(
-        {
-            2: 'namespace',
-            4: 'enum',
-            32: 'variable',
-            16: '', // Enum member
-            64: 'function',
-            128: 'class',
-            256: 'interface',
-            1024: '', // property, no selector (unless parent is class, see below)
-            2048: '', // method, handled below
-            4096: 'function', // call signature (functions)
-            262144: 'instance', // get/set
-            524288: 'instance', // get signature (getter without setter)
-            4194304: 'type', // 131072? 65535?
-        }[node.kind] ?? ''
+  if (node.signatures && !node.comment) {
+    return getKeywords(node.signatures[0]);
+  }
+  let keywords = getTag(node, 'keywords');
+  if (!keywords && hasTag(node, 'keyword' as any)) {
+    console.warn(
+      'The tag for keywords is "@keywords", not "@keyword" ',
+      getQualifiedName(node)
     );
+    keywords = getTag(node, 'keyword' as any);
+  }
 
-    result.push(getName(node));
+  let result = (keywords ?? '').split(',');
 
-    if (hasTag(node, 'category' as any)) {
-        const category = getTag(node, 'category' as any)
-            .split(' ')
-            .map((x) => x.toLowerCase().trim());
-        result = [...result, ...category];
-    }
+  result.push(
+    {
+      2: 'namespace',
+      4: 'enum',
+      32: 'variable',
+      16: '', // Enum member
+      64: 'function',
+      128: 'class',
+      256: 'interface',
+      1024: '', // property, no selector (unless parent is class, see below)
+      2048: '', // method, handled below
+      4096: 'function', // call signature (functions)
+      262144: 'instance', // get/set
+      524288: 'instance', // get signature (getter without setter)
+      4194304: 'type', // 131072? 65535?
+    }[node.kind] ?? ''
+  );
 
-    // Add synonyms
-    result = [].concat(
-        ...result.map((word) => {
-            if (gOptions.keywordSynonyms?.hasOwnProperty(word) ?? false) {
-                return [word, ...gOptions.keywordSynonyms[word]];
-            }
-            return [word];
-        })
-    );
+  result.push(getName(node));
 
-    // Remove empty keywords, normalize to lowercase
-    result = result
-        .filter((x) => !!x)
-        .map((x: string) => x.trim().toLowerCase());
+  if (hasTag(node, 'category' as any)) {
+    const category = getTag(node, 'category' as any)
+      .split(' ')
+      .map((x) => x.toLowerCase().trim());
+    result = [...result, ...category];
+  }
 
-    // Remove duplicates
-    return [...new Set(result)];
+  // Add synonyms
+  result = [].concat(
+    ...result.map((word) => {
+      if (gOptions.keywordSynonyms?.hasOwnProperty(word) ?? false) {
+        return [word, ...gOptions.keywordSynonyms[word]];
+      }
+      return [word];
+    })
+  );
+
+  // Remove empty keywords, normalize to lowercase
+  result = result.filter((x) => !!x).map((x: string) => x.trim().toLowerCase());
+
+  // Remove duplicates
+  return [...new Set(result)];
 }
 
 function renderFlags(node: Reflection, style = 'block') {
-    if (!node) return '';
-    let result = '';
-    if (node.flags) {
-        if (node.flags.isAbstract) result += span('abstract', 'modifier-tag');
-        if (node.flags.isPrivate) result += span('private', 'modifier-tag');
-        if (node.flags.isProtected) result += span('protected', 'modifier-tag');
-        if (node.flags.isPublic) result += span('public', 'modifier-tag');
-        // The 'exported' flag is low information in a public API. Skip it.
-        // if (json.isExported) result += span('exported', 'modifier-tag');
-        if (node.flags.isExternal) result += span('external', 'modifier-tag');
-        if (node.flags.isStatic) result += span('static', 'modifier-tag');
-    }
+  if (!node) return '';
+  let result = '';
+  if (node.flags) {
+    if (node.flags.isAbstract) result += span('abstract', 'modifier-tag');
+    if (node.flags.isPrivate) result += span('private', 'modifier-tag');
+    if (node.flags.isProtected) result += span('protected', 'modifier-tag');
+    if (node.flags.isPublic) result += span('public', 'modifier-tag');
+    // The 'exported' flag is low information in a public API. Skip it.
+    // if (json.isExported) result += span('exported', 'modifier-tag');
+    if (node.flags.isExternal) result += span('external', 'modifier-tag');
+    if (node.flags.isStatic) result += span('static', 'modifier-tag');
+  }
 
-    const TAGS: {
-        [tag: string]: 'red modifier-tag' | 'orange modifier-tag' | '';
-    } = {
-        // command: '', // @command: indicate commands dispatched with .executeCommand()
-        eventproperty: '',
-        override: '',
-        // public: '',  // @public is not a block tag: it gets converted to a flag
-        // private: '',  // @private is not a block tag: it gets converted to a flag
-        // protected: '',  // @protected is not a block tag: it gets converted to a flag
-        readonly: '',
-        sealed: '',
-        virtual: '',
-        deprecated: 'red modifier-tag',
-        // internal: 'red', // Items with a @internal tag are ignored
-        beta: 'orange modifier-tag',
-        alpha: 'orange modifier-tag',
-        experimental: 'orange modifier-tag',
-    };
-    const TAG_NAME = {
-        eventproperty: 'event',
-        readonly: 'read only',
-    };
-    result += Object.keys(TAGS)
-        .map((x) =>
-            hasTag(node, x as Tag)
-                ? span(TAG_NAME[x] || x, TAGS[x] || 'modifier-tag')
-                : ''
-        )
-        .join('');
+  const TAGS: {
+    [tag: string]: 'red modifier-tag' | 'orange modifier-tag' | '';
+  } = {
+    // command: '', // @command: indicate commands dispatched with .executeCommand()
+    eventproperty: '',
+    override: '',
+    // public: '',  // @public is not a block tag: it gets converted to a flag
+    // private: '',  // @private is not a block tag: it gets converted to a flag
+    // protected: '',  // @protected is not a block tag: it gets converted to a flag
+    readonly: '',
+    sealed: '',
+    virtual: '',
+    deprecated: 'red modifier-tag',
+    // internal: 'red', // Items with a @internal tag are ignored
+    beta: 'orange modifier-tag',
+    alpha: 'orange modifier-tag',
+    experimental: 'orange modifier-tag',
+  };
+  const TAG_NAME = {
+    eventproperty: 'event',
+    readonly: 'read only',
+  };
+  result += Object.keys(TAGS)
+    .map((x) =>
+      hasTag(node, x as Tag)
+        ? span(TAG_NAME[x] || x, TAGS[x] || 'modifier-tag')
+        : ''
+    )
+    .join('');
 
-    return result
-        ? style === 'block'
-            ? div(result, 'flags')
-            : span(result, 'flags')
-        : '';
+  return result
+    ? style === 'block'
+      ? div(result, 'flags')
+      : span(result, 'flags')
+    : '';
 }
 
 /**
@@ -981,127 +964,126 @@ function renderFlags(node: Reflection, style = 'block') {
  * See https://github.com/microsoft/tsdoc/blob/master/tsdoc/src/details/StandardTags.ts for the list of supported tags
  */
 function renderTag(node: Reflection, tag: string, text: string) {
-    if (!tag || !text) return '';
-    let result = '';
-    text = trimNewline(text.trim()) || '';
-    switch (tag) {
-        case 'method':
-            result +=
-                '<strong>Method:</strong> ' +
-                markdown.render(renderLinkTags(node, text));
-            break;
-        case 'module':
-            result +=
-                '<strong>Module:</strong> ' +
-                markdown.render(renderLinkTags(node, text));
-            break;
-        case 'function':
-            result +=
-                '<strong>Function:</strong> ' +
-                markdown.render(renderLinkTags(node, text));
-            break;
-        case 'example':
-            result +=
-                '\n<pre><code>' +
-                highlightJs.highlight('typescript', text).value +
-                '</code></pre>\n';
-            break;
-        case 'typedef':
-        case 'type':
-        case 'property':
-        case 'param':
-        case 'returns':
-            // Those tags are emitted for type definition
-            // but they are redundant...
-            break;
-        case 'privateremarks':
-            // This comment is for internal use only. Do not output it
-            // in the API documentation.
-            break;
-        case 'packageDocumentation':
-            // This tag indicates this is the top-level documentation
-            // We handle it separately, no need to emit it here.
-            break;
-        case 'category':
-            // Categories/topics are handled separately
-            break;
-        case 'global':
-            // Globals are grouped together and indicated separately
-            break;
-        case 'keywords':
-            // Keywords are handled separately
-            break;
-        case 'command':
-            // The @command tag indicates that the properties of a class or
-            // interface specify the selectors of a command to be invoked with
-            // the code which is the value of the @command tag. This is handled
-            // separately and should not be displayed as a regular tag.
-            break;
+  if (!tag || !text) return '';
+  let result = '';
+  text = trimNewline(text.trim()) || '';
+  switch (tag) {
+    case 'method':
+      result +=
+        '<strong>Method:</strong> ' +
+        markdown.render(renderLinkTags(node, text));
+      break;
+    case 'module':
+      result +=
+        '<strong>Module:</strong> ' +
+        markdown.render(renderLinkTags(node, text));
+      break;
+    case 'function':
+      result +=
+        '<strong>Function:</strong> ' +
+        markdown.render(renderLinkTags(node, text));
+      break;
+    case 'example':
+      result +=
+        '\n<pre><code>' +
+        highlightJs.highlight('typescript', text).value +
+        '</code></pre>\n';
+      break;
+    case 'typedef':
+    case 'type':
+    case 'property':
+    case 'param':
+    case 'returns':
+      // Those tags are emitted for type definition
+      // but they are redundant...
+      break;
+    case 'privateremarks':
+      // This comment is for internal use only. Do not output it
+      // in the API documentation.
+      break;
+    case 'packageDocumentation':
+      // This tag indicates this is the top-level documentation
+      // We handle it separately, no need to emit it here.
+      break;
+    case 'category':
+      // Categories/topics are handled separately
+      break;
+    case 'global':
+      // Globals are grouped together and indicated separately
+      break;
+    case 'keywords':
+      // Keywords are handled separately
+      break;
+    case 'command':
+      // The @command tag indicates that the properties of a class or
+      // interface specify the selectors of a command to be invoked with
+      // the code which is the value of the @command tag. This is handled
+      // separately and should not be displayed as a regular tag.
+      break;
 
-        case 'keyword':
-            console.warn(
-                'Unexpected tag "@keyword" in ' +
-                    node.name +
-                    '. Did you mean "@keywords"?'
-            );
-        // fall through
+    case 'keyword':
+      console.warn(
+        'Unexpected tag "@keyword" in ' +
+          node.name +
+          '. Did you mean "@keywords"?'
+      );
+    // fall through
 
-        default:
-            if (text) {
-                const noticeStyle =
-                    {
-                        eventproperty: 'info',
-                        override: 'info',
-                        public: 'info',
-                        readonly: 'info',
-                        sealed: 'info',
-                        virtual: 'info',
-                        alpha: 'warning',
-                        beta: 'warning',
-                        experimental: 'warning',
-                        deprecated: 'danger',
-                        internal: 'danger',
-                    }[tag] || 'info';
-                const tagLabel = { eventproperty: 'event' }[tag] || tag;
-                // Add a notice style
-                result += section(
-                    '<h4>' +
-                        tagLabel +
-                        '</h4>\n\n' +
-                        markdown.render(renderLinkTags(node, text)),
-                    { className: 'notice--' + noticeStyle }
-                );
-            } else if (
-                !/alpha|beta|deprecated|eventproperty|experimental|internal|override|public|readonly|sealed|virtual/i.test(
-                    tag
-                )
-            ) {
-                result += '<strong>' + tag + '</strong>';
-            } else {
-                // console.log('Unexpected tag ' + tag);
-            }
-    }
-    return result;
+    default:
+      if (text) {
+        const noticeStyle =
+          {
+            eventproperty: 'info',
+            override: 'info',
+            public: 'info',
+            readonly: 'info',
+            sealed: 'info',
+            virtual: 'info',
+            alpha: 'warning',
+            beta: 'warning',
+            experimental: 'warning',
+            deprecated: 'danger',
+            internal: 'danger',
+          }[tag] || 'info';
+        const tagLabel = { eventproperty: 'event' }[tag] || tag;
+        // Add a notice style
+        result += section(
+          '<h4>' +
+            tagLabel +
+            '</h4>\n\n' +
+            markdown.render(renderLinkTags(node, text)),
+          { className: 'notice--' + noticeStyle }
+        );
+      } else if (
+        !/alpha|beta|deprecated|eventproperty|experimental|internal|override|public|readonly|sealed|virtual/i.test(
+          tag
+        )
+      ) {
+        result += '<strong>' + tag + '</strong>';
+      } else {
+        // console.log('Unexpected tag ' + tag);
+      }
+  }
+  return result;
 }
 
 function escapeYAMLString(str: string): string {
-    return str.replace(/([^\\])'/g, "$1\\'");
+  return str.replace(/([^\\])'/g, "$1\\'");
 }
 
 function trimQuotes(str: string): string {
-    return str.replace(/(^")|("$)/g, '');
+  return str.replace(/(^")|("$)/g, '');
 }
 
 function trimNewline(str: string): string {
-    return str.replace(/(\n+)$/g, '');
+  return str.replace(/(\n+)$/g, '');
 }
 
 function isVoid(node: Reflection): boolean {
-    // Both values can be returned. Not sure when, or if that's intentional...
-    return (
-        node.type === 'void' ||
-        (node.type === 'intrinsic' && node.name === 'void')
-    );
+  // Both values can be returned. Not sure when, or if that's intentional...
+  return (
+    node.type === 'void' || (node.type === 'intrinsic' && node.name === 'void')
+  );
 }
 
 /**
@@ -1126,125 +1108,122 @@ function isVoid(node: Reflection): boolean {
  */
 
 function getQualifiedSymbol(parent: Reflection, node: Reflection): string {
-    if (node.kind === 0) {
-        // File-level
-        return '';
+  if (node.kind === 0) {
+    // File-level
+    return '';
+  }
+  if (node.kind === 1) {
+    // This is a module
+    console.assert(parent.kind === 0);
+    if (parent.children.length === 1) {
+      // And there is a single module in this file
+      return '';
     }
-    if (node.kind === 1) {
-        // This is a module
-        console.assert(parent.kind === 0);
-        if (parent.children.length === 1) {
-            // And there is a single module in this file
-            return '';
-        }
-        return '("' + getModuleName(node) + '":module)';
+    return '("' + getModuleName(node) + '":module)';
+  }
+  if (node.kind === 2) {
+    // Namespace.
+    // There's a bug in typedoc:
+    // https://github.com/TypeStrong/typedoc/issues/1284
+    // exported modules are returned as 'namespace' with a stringLiteral value
+    if (/^"(.*)"$/.test(node.name)) {
+      return '("' + trimQuotes(node.name) + '":module)';
     }
-    if (node.kind === 2) {
-        // Namespace.
-        // There's a bug in typedoc:
-        // https://github.com/TypeStrong/typedoc/issues/1284
-        // exported modules are returned as 'namespace' with a stringLiteral value
-        if (/^"(.*)"$/.test(node.name)) {
-            return '("' + trimQuotes(node.name) + '":module)';
-        }
-        return '(' + node.name + '":namespace)';
+    return '(' + node.name + '":namespace)';
+  }
+  if (node.type === 'reference') {
+    // If this is a reference, resolve it.
+    // For example in 'Keys<Commands>' 'Keys' is a reference to the
+    // type 'Keys'
+    node = getReflectionByID(node.id);
+  }
+  const symbol = node.name;
+  let selector = {
+    2: 'namespace',
+    4: 'enum',
+    32: 'variable',
+    16: '', // Enum member
+    64: 'function',
+    128: 'class',
+    256: 'interface',
+    1024: '', // property, no selector (unless parent is class, see below)
+    2048: '', // method, handled below
+    4096: 'function', // call signature (functions)
+    262144: 'instance', // get/set
+    524288: 'instance', // get signature
+    4194304: 'type', // 131072? 65535?
+    16777216: 'reference', //
+  }[node.kind];
+  console.assert(selector !== undefined);
+  if (node.kind === 512) {
+    // Constructor (special syntax)
+    // Note: this code should never be reached,
+    // this case is handled in makePermalink()
+    return ':constructor';
+  }
+  // See https://github.com/microsoft/tsdoc/blob/master/spec/code-snippets/DeclarationReferences.ts
+  // for the list of standard selectors
+  if (parent && parent.kind === 128) {
+    // If the parent is a class, use a 'static' or 'instance'
+    // selector for properties (1024) and methods (2048)
+    if (node.kind === 1024 || node.kind === 2048) {
+      if (node.flags?.isStatic) {
+        selector = 'static';
+      } else {
+        selector = 'instance';
+      }
     }
-    if (node.type === 'reference') {
-        // If this is a reference, resolve it.
-        // For example in 'Keys<Commands>' 'Keys' is a reference to the
-        // type 'Keys'
-        node = getReflectionByID(node.id);
-    }
-    const symbol = node.name;
-    let selector = {
-        2: 'namespace',
-        4: 'enum',
-        32: 'variable',
-        16: '', // Enum member
-        64: 'function',
-        128: 'class',
-        256: 'interface',
-        1024: '', // property, no selector (unless parent is class, see below)
-        2048: '', // method, handled below
-        4096: 'function', // call signature (functions)
-        262144: 'instance', // get/set
-        524288: 'instance', // get signature
-        4194304: 'type', // 131072? 65535?
-        16777216: 'reference', //
-    }[node.kind];
-    console.assert(typeof selector !== 'undefined');
-    if (node.kind === 512) {
-        // Constructor (special syntax)
-        // Note: this code should never be reached,
-        // this case is handled in makePermalink()
-        return ':constructor';
-    }
-    // See https://github.com/microsoft/tsdoc/blob/master/spec/code-snippets/DeclarationReferences.ts
-    // for the list of standard selectors
-    if (parent && parent.kind === 128) {
-        // If the parent is a class, use a 'static' or 'instance'
-        // selector for properties (1024) and methods (2048)
-        if (node.kind === 1024 || node.kind === 2048) {
-            if (node.flags?.isStatic) {
-                selector = 'static';
-            } else {
-                selector = 'instance';
-            }
-        }
-    } else if (parent?.kind === 256) {
-        // There's no selector for members of interfaces
-        selector = '';
-    }
-    const label = getTag(node, 'label');
-    if (label) {
-        // If there's an explicit @label set, use it as a selector
-        selector = label;
-    }
+  } else if (parent?.kind === 256) {
+    // There's no selector for members of interfaces
+    selector = '';
+  }
+  const label = getTag(node, 'label');
+  if (label) {
+    // If there's an explicit @label set, use it as a selector
+    selector = label;
+  }
 
-    return selector ? `(${symbol}:${selector})` : symbol;
+  return selector ? `(${symbol}:${selector})` : symbol;
 }
 
 // Return 'class', 'abstract class', 'interface, 'enum'
 // when appropriate
 function getQualifiedName(node: Reflection): string {
-    if (!node || node.kind === 0) return '';
-    if (node.kind === 128 && hasFlag(node, 'isAbstract')) {
-        // Class
-        return (
-            keyword('abstract class ') +
-            '<strong>' +
-            getName(node) +
-            '</strong>'
-        );
-    }
-    // There's a bug in typedoc:
-    // https://github.com/TypeStrong/typedoc/issues/1284
-    // exported modules are returned as 'namespace' with a stringLiteral value
-    // if (node.kind === 2 && /^"(.*)"$/.test(node.name)) {
-    //     return (
-    //         keyword('module ') +
-    //         '<strong>"' +
-    //         trimQuotes(node.name).replace(/\.d$/, '') +
-    //         '"</strong>'
-    //     );
-    // }
-    if (node.kind === 1) {
-        return keyword('module ') + '<strong>"' + getName(node) + '"</strong>';
-    }
+  if (!node || node.kind === 0) return '';
+  if (node.kind === 128 && hasFlag(node, 'isAbstract')) {
+    // Class
     return (
-        keyword(
-            {
-                256: 'interface ',
-                128: 'class ',
-                4: 'enum ',
-                2: 'namespace ',
-                1: 'module ',
-            }[node.kind] ?? ''
-        ) +
-        '<strong>' +
-        getName(node) +
-        '</strong>'
+      keyword('abstract class ') + '<strong>' + getName(node) + '</strong>'
     );
+  }
+  // There's a bug in typedoc:
+  // https://github.com/TypeStrong/typedoc/issues/1284
+  // exported modules are returned as 'namespace' with a stringLiteral value
+  // if (node.kind === 2 && /^"(.*)"$/.test(node.name)) {
+  //     return (
+  //         keyword('module ') +
+  //         '<strong>"' +
+  //         trimQuotes(node.name).replace(/\.d$/, '') +
+  //         '"</strong>'
+  //     );
+  // }
+  if (node.kind === 1) {
+    return keyword('module ') + '<strong>"' + getName(node) + '"</strong>';
+  }
+  return (
+    keyword(
+      {
+        256: 'interface ',
+        128: 'class ',
+        4: 'enum ',
+        2: 'namespace ',
+        1: 'module ',
+      }[node.kind] ?? ''
+    ) +
+    '<strong>' +
+    getName(node) +
+    '</strong>'
+  );
 }
 
 // See: https://github.com/microsoft/tsdoc/blob/master/spec/code-snippets/DeclarationReferences.ts
@@ -1254,53 +1233,53 @@ function getQualifiedName(node: Reflection): string {
 // or "@module/path/director#Foo"
 
 function resolveLink(node: Reflection, link: string): string {
-    if (/^http[s]?:\/\//.test(link)) {
-        // It's a regular URL
-        return link;
-    }
-    if (!getReflectionByLink(link, node)) {
-        // Check that the link actually resolves to a reflection
-        console.warn('Unresolved link in "' + node.name + '": ', link);
-        // Even if it doesn't, we can still generate a URL, but it
-        // likely won't point to anywhere.
-    }
-    let result = '';
-    const imports = link.split('#');
-    if (imports.length > 1) {
-        result = imports[0];
-        // Omit what comes before '#'
-        link = imports.slice(1).join('');
-        // @todo: resolve external references. Maybe have a mapping table
-        // specified with @externallink foo=href ?
-    }
-    const linkSegments = link.split('.');
-    let root = gNodes;
-    linkSegments.forEach((linkSegment) => {
-        root = getReflectionByLink(linkSegment, root);
-    });
+  if (/^http[s]?:\/\//.test(link)) {
+    // It's a regular URL
+    return link;
+  }
+  if (!getReflectionByLink(link, node)) {
+    // Check that the link actually resolves to a reflection
+    console.warn('Unresolved link in "' + node.name + '": ', link);
+    // Even if it doesn't, we can still generate a URL, but it
+    // likely won't point to anywhere.
+  }
+  let result = '';
+  const imports = link.split('#');
+  if (imports.length > 1) {
+    result = imports[0];
+    // Omit what comes before '#'
+    link = imports.slice(1).join('');
+    // @todo: resolve external references. Maybe have a mapping table
+    // specified with @externallink foo=href ?
+  }
+  const linkSegments = link.split('.');
+  let root = gNodes;
+  linkSegments.forEach((linkSegment) => {
+    root = getReflectionByLink(linkSegment, root);
+  });
 
-    return root
-        ? result + '#' + encodeURIComponent(makePermalink(root).anchor)
-        : result + '#' + linkSegments.join('.');
+  return root
+    ? result + '#' + encodeURIComponent(makePermalink(root).anchor)
+    : result + '#' + linkSegments.join('.');
 }
 
 function getTutorial(path: string): string {
-    if (!gOptions.tutorialPath) return path;
-    if (!gOptions.tutorialPath.endsWith('/')) {
-        return gOptions.tutorialPath + '/' + path;
-    }
-    return gOptions.tutorialPath + path;
+  if (!gOptions.tutorialPath) return path;
+  if (!gOptions.tutorialPath.endsWith('/')) {
+    return gOptions.tutorialPath + '/' + path;
+  }
+  return gOptions.tutorialPath + path;
 }
 
 /**
  * Return a list of reflection, with private symbols (e.g '#foo') removed
  */
 function filterPrivate(list: Reflection[]): Reflection[] {
-    return list.filter((x) => x.name?.[0] !== '#');
+  return list.filter((x) => x.name?.[0] !== '#');
 }
 
 function filterInherited(list: Reflection[]): Reflection[] {
-    return list.filter((x) => !x.inheritedFrom);
+  return list.filter((x) => !x.inheritedFrom);
 }
 
 /**
@@ -1312,238 +1291,235 @@ function filterInherited(list: Reflection[]): Reflection[] {
  */
 
 function renderLinkTags(node: Reflection, str: string) {
-    str = str.replace(
-        /{@tutorial\s+(\S+?)[ \|]+(.+?)}/g,
-        (_match, p1, p2) => `<a href="${getTutorial(p1)}">${p2}</a>`
-    );
-    str = str.replace(
-        /{@tutorial\s+(\S+?)}/g,
-        (_match, p1) => `<a href="${getTutorial(p1)}">${p1}</a>`
-    );
+  str = str.replace(
+    /{@tutorial\s+(\S+?)[ \|]+(.+?)}/g,
+    (_match, p1, p2) => `<a href="${getTutorial(p1)}">${p2}</a>`
+  );
+  str = str.replace(
+    /{@tutorial\s+(\S+?)}/g,
+    (_match, p1) => `<a href="${getTutorial(p1)}">${p1}</a>`
+  );
 
-    // @linkcode with title
-    str = str.replace(
-        /{@linkcode\s+(\S+?)\s*\|\s*(.+?)}/g,
-        (_match, p1, p2) =>
-            `<a href="${resolveLink(node, p1)}"><code>${p2}</code></a>`
-    );
-    // @linkcode no title
-    str = str.replace(
-        /{@linkcode\s+(\S+?)}/g,
-        (_match, p1) =>
-            `<a href="${resolveLink(node, p1)}"><code>${p1}</code></a>`
-    );
-    // [[`` | ]]
-    str = str.replace(
-        /\[\[\`(\S+?)\`\s*\|\s*(.+?)\]\]/g,
-        (_match, p1) =>
-            `<a href="${resolveLink(node, p1)}"><code>${p1}</code></a>`
-    );
-    // [[``]]
-    str = str.replace(
-        /\[\[\`(\S+?)\`\]\]/g,
-        (_match, p1) =>
-            `<a href="${resolveLink(node, p1)}"><code>${p1}</code></a>`
-    );
+  // @linkcode with title
+  str = str.replace(
+    /{@linkcode\s+(\S+?)\s*\|\s*(.+?)}/g,
+    (_match, p1, p2) =>
+      `<a href="${resolveLink(node, p1)}"><code>${p2}</code></a>`
+  );
+  // @linkcode no title
+  str = str.replace(
+    /{@linkcode\s+(\S+?)}/g,
+    (_match, p1) => `<a href="${resolveLink(node, p1)}"><code>${p1}</code></a>`
+  );
+  // [[`` | ]]
+  str = str.replace(
+    /\[\[\`(\S+?)\`\s*\|\s*(.+?)\]\]/g,
+    (_match, p1) => `<a href="${resolveLink(node, p1)}"><code>${p1}</code></a>`
+  );
+  // [[``]]
+  str = str.replace(
+    /\[\[\`(\S+?)\`\]\]/g,
+    (_match, p1) => `<a href="${resolveLink(node, p1)}"><code>${p1}</code></a>`
+  );
 
-    // @link and @linkplain with title
-    str = str.replace(
-        /{@(?:link|linkplain)\s+(\S+?)\s*\|\s*(.+?)}/g,
-        (_match, p1, p2) => `<a href="${resolveLink(node, p1)}">${p2}</a>`
-    );
+  // @link and @linkplain with title
+  str = str.replace(
+    /{@(?:link|linkplain)\s+(\S+?)\s*\|\s*(.+?)}/g,
+    (_match, p1, p2) => `<a href="${resolveLink(node, p1)}">${p2}</a>`
+  );
 
-    // @link and @linkplain no title
-    str = str.replace(
-        /{@(?:link|linkplain)\s+(\S+?)}/g,
-        (_match, p1) => `<a href="${resolveLink(node, p1)}">${p1}</a>`
-    );
+  // @link and @linkplain no title
+  str = str.replace(
+    /{@(?:link|linkplain)\s+(\S+?)}/g,
+    (_match, p1) => `<a href="${resolveLink(node, p1)}">${p1}</a>`
+  );
 
-    // [[ | ]] with title
-    str = str.replace(
-        /\[\[(\S+?)\s*\|\s*(.+?)\]\]/g,
-        (_match, p1, p2) => `<a href="${resolveLink(node, p1)}">${p2}</a>`
-    );
+  // [[ | ]] with title
+  str = str.replace(
+    /\[\[(\S+?)\s*\|\s*(.+?)\]\]/g,
+    (_match, p1, p2) => `<a href="${resolveLink(node, p1)}">${p2}</a>`
+  );
 
-    // [[]]
-    str = str.replace(
-        /\[\[(\S+?)\]\]/g,
-        (_match, p1) => `<a href="${resolveLink(node, p1)}">${p1}</a>`
-    );
+  // [[]]
+  str = str.replace(
+    /\[\[(\S+?)\]\]/g,
+    (_match, p1) => `<a href="${resolveLink(node, p1)}">${p1}</a>`
+  );
 
-    // {@inheritDoc ...}
-    str = str.replace(/({@(?:inheritDoc)\s+(\S+?)})/gi, (_match, p1, p2) => {
-        if (!p1.startsWith('{@inheritDoc')) {
-            console.warn('Check capitalization of @inheritDoc', p1);
-        }
-        const source = getReflectionByLink(p2, node);
-        if (!source) {
-            console.warn('Unresolved link in "' + node.name + '": ', p1);
-            return p1;
-        }
-        return render(source, 'block-inherit'); // As a block, but exclude tags and @example
-    });
+  // {@inheritDoc ...}
+  str = str.replace(/({@(?:inheritDoc)\s+(\S+?)})/gi, (_match, p1, p2) => {
+    if (!p1.startsWith('{@inheritDoc')) {
+      console.warn('Check capitalization of @inheritDoc', p1);
+    }
+    const source = getReflectionByLink(p2, node);
+    if (!source) {
+      console.warn('Unresolved link in "' + node.name + '": ', p1);
+      return p1;
+    }
+    return render(source, 'block-inherit'); // As a block, but exclude tags and @example
+  });
 
-    return str;
+  return str;
 }
 
 /**
  */
 
 function renderNotices(node: Reflection, str: string): string {
-    const lines = str.split('\n');
-    const blocks = [];
-    let inShortBlock = false;
-    let inLongBlock = false;
-    let currentBlock = [];
-    let currentType = '';
-    lines.forEach((line) => {
-        if (inShortBlock) {
-            // Looking for an empty line
-            const m = line.match(/^\s*$/i);
-            if (m) {
-                if (currentBlock.length > 0) {
-                    blocks.push({
-                        type: currentType,
-                        content: currentBlock.join('\n'),
-                    });
-                }
-                inShortBlock = false;
-                currentType = '';
-                currentBlock = [];
-            } else {
-                // Still in a short block
-                currentBlock.push(line);
-            }
-        } else if (inLongBlock) {
-            // Looking for a '---' or '***' at the begining of the line
-            if (/^[ ]{0,3}(\*\*\*|---)/.test(line)) {
-                if (currentBlock.length > 0) {
-                    blocks.push({
-                        type: currentType,
-                        content: currentBlock.join('\n'),
-                    });
-                }
-                inLongBlock = false;
-                currentType = '';
-                currentBlock = [];
-            } else {
-                // Still in a long block
-                currentBlock.push(line);
-            }
-        } else {
-            // Looking for a notice tag at the start of the line:
-            // '**(note)**', etc..
-            let m = line.match(/\n*\*\*\(([^]+)\):?\s*\*\*\s*:?\s*([^]+)/i);
-            if (m) {
-                // Found a short note
-                if (currentBlock.length > 0) {
-                    blocks.push({
-                        type: currentType,
-                        content: currentBlock.join('\n'),
-                    });
-                }
-                inShortBlock = true;
-                currentType = m[1];
-                currentBlock = [m[2]];
-            } else {
-                m = line.match(/\n*\*\*\(([^]+)\):?\s*\*\*\s*:?\s*$/i);
-                if (m) {
-                    // Found a long note
-                    if (currentBlock.length > 0) {
-                        blocks.push({
-                            type: currentType,
-                            content: currentBlock.join('\n'),
-                        });
-                    }
-                    inLongBlock = true;
-                    currentType = m[1];
-                    currentBlock = [];
-                } else {
-                    // Nothing special
-                    currentBlock.push(line);
-                }
-            }
+  const lines = str.split('\n');
+  const blocks = [];
+  let inShortBlock = false;
+  let inLongBlock = false;
+  let currentBlock = [];
+  let currentType = '';
+  lines.forEach((line) => {
+    if (inShortBlock) {
+      // Looking for an empty line
+      const m = line.match(/^\s*$/i);
+      if (m) {
+        if (currentBlock.length > 0) {
+          blocks.push({
+            type: currentType,
+            content: currentBlock.join('\n'),
+          });
         }
-    });
-    if (currentBlock.length > 0) {
-        blocks.push({ type: currentType, content: currentBlock.join('\n') });
+        inShortBlock = false;
+        currentType = '';
+        currentBlock = [];
+      } else {
+        // Still in a short block
+        currentBlock.push(line);
+      }
+    } else if (inLongBlock) {
+      // Looking for a '---' or '***' at the begining of the line
+      if (/^[ ]{0,3}(\*\*\*|---)/.test(line)) {
+        if (currentBlock.length > 0) {
+          blocks.push({
+            type: currentType,
+            content: currentBlock.join('\n'),
+          });
+        }
+        inLongBlock = false;
+        currentType = '';
+        currentBlock = [];
+      } else {
+        // Still in a long block
+        currentBlock.push(line);
+      }
+    } else {
+      // Looking for a notice tag at the start of the line:
+      // '**(note)**', etc..
+      let m = line.match(/\n*\*\*\(([^]+)\):?\s*\*\*\s*:?\s*([^]+)/i);
+      if (m) {
+        // Found a short note
+        if (currentBlock.length > 0) {
+          blocks.push({
+            type: currentType,
+            content: currentBlock.join('\n'),
+          });
+        }
+        inShortBlock = true;
+        currentType = m[1];
+        currentBlock = [m[2]];
+      } else {
+        m = line.match(/\n*\*\*\(([^]+)\):?\s*\*\*\s*:?\s*$/i);
+        if (m) {
+          // Found a long note
+          if (currentBlock.length > 0) {
+            blocks.push({
+              type: currentType,
+              content: currentBlock.join('\n'),
+            });
+          }
+          inLongBlock = true;
+          currentType = m[1];
+          currentBlock = [];
+        } else {
+          // Nothing special
+          currentBlock.push(line);
+        }
+      }
     }
-    return blocks
-        .map((block) => {
-            if (block.type) {
-                const noticeType =
-                    {
-                        danger: 'danger',
-                        warning: 'warning',
-                        caution: 'warning',
-                    }[block.type.toLowerCase()] || 'info';
-                return div(
-                    `<h4>${block.type}</h4>\n` +
-                        markdown.render(renderLinkTags(node, block.content)),
-                    'notice--' + noticeType
-                );
-            }
-            return markdown.render(renderLinkTags(node, block.content));
-        })
-        .join('\n');
+  });
+  if (currentBlock.length > 0) {
+    blocks.push({ type: currentType, content: currentBlock.join('\n') });
+  }
+  return blocks
+    .map((block) => {
+      if (block.type) {
+        const noticeType =
+          {
+            danger: 'danger',
+            warning: 'warning',
+            caution: 'warning',
+          }[block.type.toLowerCase()] || 'info';
+        return div(
+          `<h4>${block.type}</h4>\n` +
+            markdown.render(renderLinkTags(node, block.content)),
+          'notice--' + noticeType
+        );
+      }
+      return markdown.render(renderLinkTags(node, block.content));
+    })
+    .join('\n');
 }
 
 function renderComment(node: Reflection, style: string): string {
-    if (!node) return '';
-    if (node.signatures && !node.comment) {
-        return renderComment(node.signatures[0], style);
-    }
-    if (!node.comment) return '';
-    let result = '';
-    const newLine = '\n';
+  if (!node) return '';
+  if (node.signatures && !node.comment) {
+    return renderComment(node.signatures[0], style);
+  }
+  if (!node.comment) return '';
+  let result = '';
+  const newLine = '\n';
 
-    if (node.comment.shortText) {
-        result += renderNotices(node, node.comment.shortText) + newLine;
+  if (node.comment.shortText) {
+    result += renderNotices(node, node.comment.shortText) + newLine;
+  }
+  if (node.comment.text) {
+    result += renderNotices(node, node.comment.text) + newLine;
+  }
+  const remarks = getTag(node, 'remarks');
+  if (remarks) {
+    result += renderNotices(node, remarks) + newLine;
+  }
+  if (style !== 'block-inherit') {
+    if (node.comment.tags && node.comment.tags.length > 0) {
+      result +=
+        newLine +
+        node.comment.tags
+          .map((x) => renderTag(node, x.tag, x.text))
+          .filter((x) => !!x)
+          .join(newLine + newLine) +
+        newLine;
     }
-    if (node.comment.text) {
-        result += renderNotices(node, node.comment.text) + newLine;
-    }
-    const remarks = getTag(node, 'remarks');
-    if (remarks) {
-        result += renderNotices(node, remarks) + newLine;
-    }
-    if (style !== 'block-inherit') {
-        if (node.comment.tags && node.comment.tags.length > 0) {
-            result +=
-                newLine +
-                node.comment.tags
-                    .map((x) => renderTag(node, x.tag, x.text))
-                    .filter((x) => !!x)
-                    .join(newLine + newLine) +
-                newLine;
-        }
-    }
-    return result;
+  }
+  return result;
 }
 
 function getModuleName(node): string {
-    if (!node) return '';
-    if (node.kind === 1) {
-        const result = trimQuotes(node.name).replace(/\.d$/, '');
-        return result.match(/\/([a-z0-9_-]*[\/]?)$/)?.[1] ?? result;
-    }
-    return getModuleName(getParent(node));
+  if (!node) return '';
+  if (node.kind === 1) {
+    const result = trimQuotes(node.name).replace(/\.d$/, '');
+    return result.match(/\/([a-z0-9_-]*[\/]?)$/)?.[1] ?? result;
+  }
+  return getModuleName(getParent(node));
 }
 
 function shouldIgnore(node: Reflection): boolean {
-    // @hidden and @ignore are synonyms. The nodes for these symbols are not
-    // even created.
-    // @internal will result in nodes being created, unless --strip-internal is
-    // true (which it isn't).
-    // @internal is in general a better tag, as it allows us to distinguish
-    // between an @internal symbols (which should not be documented) and an
-    // external symbol (which has an external link)
-    return (
-        hasTag(node, 'hidden') ||
-        hasTag(node, 'ignore') ||
-        hasTag(node, 'internal') ||
-        node.name[0] === '#' // Private symbols (starts with '#')...
-    );
+  // @hidden and @ignore are synonyms. The nodes for these symbols are not
+  // even created.
+  // @internal will result in nodes being created, unless --strip-internal is
+  // true (which it isn't).
+  // @internal is in general a better tag, as it allows us to distinguish
+  // between an @internal symbols (which should not be documented) and an
+  // external symbol (which has an external link)
+  return (
+    hasTag(node, 'hidden') ||
+    hasTag(node, 'ignore') ||
+    hasTag(node, 'internal') ||
+    node.name[0] === '#' // Private symbols (starts with '#')...
+  );
 }
 
 /**
@@ -1551,59 +1527,55 @@ function shouldIgnore(node: Reflection): boolean {
  */
 
 function renderCard(
-    node: Reflection,
-    displayName: string,
-    content: string
+  node: Reflection,
+  displayName: string,
+  content: string
 ): string {
-    if (shouldIgnore(node)) return '';
-    if (!content) return '';
+  if (shouldIgnore(node)) return '';
+  if (!content) return '';
 
-    const parent = getParent(node);
-    if (!displayName) {
-        displayName = `<strong>${getName(node)}</strong>`;
-        // If enum, variable (property), function (method), class,
-        // interface
-        if (
-            node.kind === 4 ||
-            node.kind === 32 ||
-            node.kind === 64 ||
-            node.kind === 128 ||
-            node.kind === 256 ||
-            node.kind === 1024 ||
-            node.kind === 2048
-        ) {
-            if (
-                parent &&
-                ((parent.kind === 2 && !/^"(.*)"$/.test(parent.name)) ||
-                    parent.kind === 128 ||
-                    parent.kind === 256)
-            ) {
-                // Parent is a namespace or class or interface
-                displayName = getName(parent) + punct('.') + displayName;
-            }
-        }
-        if (node.kind === 64) {
-            // Function
-            displayName += punct('()');
-        }
+  const parent = getParent(node);
+  if (!displayName) {
+    displayName = `<strong>${getName(node)}</strong>`;
+    // If enum, variable (property), function (method), class,
+    // interface
+    if (
+      node.kind === 4 ||
+      node.kind === 32 ||
+      node.kind === 64 ||
+      node.kind === 128 ||
+      node.kind === 256 ||
+      node.kind === 1024 ||
+      node.kind === 2048
+    ) {
+      if (
+        parent &&
+        ((parent.kind === 2 && !/^"(.*)"$/.test(parent.name)) ||
+          parent.kind === 128 ||
+          parent.kind === 256)
+      ) {
+        // Parent is a namespace or class or interface
+        displayName = getName(parent) + punct('.') + displayName;
+      }
     }
+    if (node.kind === 64) {
+      // Function
+      displayName += punct('()');
+    }
+  }
 
-    const permalink = makePermalink(node);
-    // The permalink should refer to this document (and therefore be empty)
-    console.assert(!permalink.document);
+  const permalink = makePermalink(node);
+  // The permalink should refer to this document (and therefore be empty)
+  console.assert(!permalink.document);
 
-    const header = heading(
-        3,
-        getQualifiedName(parent),
-        displayName,
-        permalink,
-        { deprecated: hasTag(node, 'deprecated') }
-    );
-    return section(header + content, {
-        permalink,
-        className: 'card',
-        keywords: getKeywords(node).join(', '),
-    });
+  const header = heading(3, getQualifiedName(parent), displayName, permalink, {
+    deprecated: hasTag(node, 'deprecated'),
+  });
+  return section(header + content, {
+    permalink,
+    className: 'card',
+    keywords: getKeywords(node).join(', '),
+  });
 }
 
 /**
@@ -1615,91 +1587,88 @@ function renderCard(
  *
  */
 function renderMethodCard(node: Reflection): string {
-    if (shouldIgnore(node)) return '';
+  if (shouldIgnore(node)) return '';
 
-    // The @command tag can be placed either on each individual entry
-    // or on the interface/class that groups them
-    const result = renderCommandCard(node);
-    if (result) return result;
+  // The @command tag can be placed either on each individual entry
+  // or on the interface/class that groups them
+  const result = renderCommandCard(node);
+  if (result) return result;
 
-    const parent = getParent(node);
-    let displayName = '';
-    let shortName = '';
-    if (node.kind === 512) {
-        // Constructor
-        // Constructors *always* have a (class) parent
-        displayName = `${keyword('new ')}<strong>${parent.name}</strong>`;
-        shortName = displayName;
-    } else {
-        shortName = `<strong>${node.name}</strong>`;
-        displayName = shortName;
-    }
+  const parent = getParent(node);
+  let displayName = '';
+  let shortName = '';
+  if (node.kind === 512) {
+    // Constructor
+    // Constructors *always* have a (class) parent
+    displayName = `${keyword('new ')}<strong>${parent.name}</strong>`;
+    shortName = displayName;
+  } else {
+    shortName = `<strong>${node.name}</strong>`;
+    displayName = shortName;
+  }
 
-    // Display one or more function signatures,
-    // which include a summary of the signature, e.g.
-    // - function foo.bar(x: string): number
-    // - comments about this function
-    // - details about each of the arguments
-    const signatures = node.signatures.filter((x) => !shouldIgnore(x));
-    if (signatures.length === 0) return '';
-    return renderCard(
-        node,
-        displayName,
-        renderComment(node, 'block') +
-            div(
-                signatures
-                    .map((signature) => {
-                        let result = renderFlags(signature);
-                        // Display the "short" signature (kind 4096)
-                        result += div(
-                            shortName + render(signature, 'inline'),
-                            'code'
-                        );
+  // Display one or more function signatures,
+  // which include a summary of the signature, e.g.
+  // - function foo.bar(x: string): number
+  // - comments about this function
+  // - details about each of the arguments
+  const signatures = node.signatures.filter((x) => !shouldIgnore(x));
+  if (signatures.length === 0) return '';
+  return renderCard(
+    node,
+    displayName,
+    renderComment(node, 'block') +
+      div(
+        signatures
+          .map((signature) => {
+            let result = renderFlags(signature);
+            // Display the "short" signature (kind 4096)
+            result += div(shortName + render(signature, 'inline'), 'code');
 
-                        // Display info about each of the params...
-                        result += render(signature, 'block');
+            // Display info about each of the params...
+            result += render(signature, 'block');
 
-                        return div(result);
-                    })
-                    .join('\n<hr>\n')
-            )
-    );
+            return div(result);
+          })
+          .join('\n<hr>\n')
+      )
+  );
 }
 
 /**
  * Card for an accessor (get/set)
  */
 function renderAccessorCard(node: Reflection) {
-    if (shouldIgnore(node)) return '';
+  if (shouldIgnore(node)) return '';
 
-    let displayName = '';
+  let displayName = '';
 
-    if (node.getSignature && node.setSignature) {
-        // set/get
-        displayName = keyword('get/set ') + `<strong>${node.name}</strong>`;
-    } else if (node.getSignature) {
-        // get only
-        displayName = keyword('get ') + `<strong>${node.name}</strong>`;
-    } else {
-        // set only
-        displayName = keyword('set ') + `<strong>${node.name}</strong>`;
-    }
+  if (node.getSignature && node.setSignature) {
+    // set/get
+    displayName = keyword('get/set ') + `<strong>${node.name}</strong>`;
+  } else if (node.getSignature) {
+    // get only
+    displayName = keyword('get ') + `<strong>${node.name}</strong>`;
+  } else {
+    // set only
+    displayName = keyword('set ') + `<strong>${node.name}</strong>`;
+  }
 
-    const signature = node.getSignature
-        ? node.getSignature[0]
-        : node.setSignature[0];
-    let body = node.name + punct(': ') + render(signature.type, 'inline');
-    if (node.getSignature && !node.setSignature) {
-        body += '&nbsp;&nbsp;' + span('read only', 'modifier-tag');
-    } else if (!node.getSignature && node.setSignature) {
-        body += '&nbsp;&nbsp;' + span('write only', 'modifier-tag');
-    }
+  const signature = node.getSignature
+    ? node.getSignature[0]
+    : node.setSignature[0];
+  let body = node.name + punct(': ') + render(signature.type, 'inline');
+  if (node.getSignature && !node.setSignature) {
+    body += '&nbsp;&nbsp;' + span('read only', 'modifier-tag');
+  } else if (!node.getSignature && node.setSignature) {
+    body += '&nbsp;&nbsp;' + span('write only', 'modifier-tag');
+  }
 
-    return renderCard(
-        node,
-        displayName,
-        div(body) + renderComment(node, 'block')
-    );
+  return renderCard(
+    node,
+    displayName,
+    div(body) + renderComment(node, 'block')
+  );
 }
 
 /**
@@ -1709,87 +1678,81 @@ function renderAccessorCard(node: Reflection) {
  */
 
 function renderClassSection(node: Reflection): string {
-    // If it's just a forward declaration, e.g.
-    // `declare class Mathfield{}`
-    // there are no children (methods, etc...) to inspect and we don't render it.
-    if (shouldIgnore(node) || !node.children) return '';
+  // If it's just a forward declaration, e.g.
+  // `declare class Mathfield{}`
+  // there are no children (methods, etc...) to inspect and we don't render it.
+  if (shouldIgnore(node) || !node.children) return '';
 
-    if (
-        node.groups.length === 1 &&
-        (node.groups[0].kind & (1024 | 2048)) !== 0 &&
-        !hasTag(node, 'command')
-    ) {
-        // There's a single group (all the children are the same kind)
-        // and all the children are properties or methods
-        return render(node, 'card');
+  if (
+    node.groups.length === 1 &&
+    (node.groups[0].kind & (1024 | 2048)) !== 0 &&
+    !hasTag(node, 'command')
+  ) {
+    // There's a single group (all the children are the same kind)
+    // and all the children are properties or methods
+    return render(node, 'card');
+  }
+
+  const permalink = makePermalink(node);
+  const parent = getParent(node);
+
+  const result =
+    heading(2, getQualifiedName(parent), getQualifiedName(node), permalink, {
+      deprecated: hasTag(node, 'deprecated'),
+    }) + renderFlags(node);
+
+  let body = '';
+  if (node.extendedTypes) {
+    body +=
+      '<p>' +
+      span('Extends', 'class-label') +
+      node.extendedTypes
+        .map((x) => render(x))
+        .filter((x) => !!x)
+        .join(', ') +
+      '</p>';
+  }
+
+  if (node.implementedTypes && node.implementedTypes.length > 0) {
+    if (node.implementedTypes.length > 0) {
+      body +=
+        '<p>' +
+        span('Implements', 'class-label') +
+        node.implementedTypes
+          .map((x) => render(x))
+          .filter((x) => !!x)
+          .join(', ') +
+        '</p>';
     }
+  }
 
-    const permalink = makePermalink(node);
-    const parent = getParent(node);
+  if (node.extendedBy) {
+    body +=
+      '<p>' +
+      span('Extended by', 'class-label') +
+      node.extendedBy
+        .map((x) => render(x))
+        .filter((x) => !!x)
+        .join(', ') +
+      '</p>';
+  }
 
-    const result =
-        heading(
-            2,
-            getQualifiedName(parent),
-            getQualifiedName(node),
-            permalink,
-            { deprecated: hasTag(node, 'deprecated') }
-        ) + renderFlags(node);
-
-    let body = '';
-    if (node.extendedTypes) {
-        body +=
-            '<p>' +
-            span('Extends', 'class-label') +
-            node.extendedTypes
-                .map((x) => render(x))
-                .filter((x) => !!x)
-                .join(', ') +
-            '</p>';
+  if (node.implementedBy) {
+    // The class is sometimes in its own "implementedBy" list
+    const implementedBy = node.implementedBy.filter((x) => x.id !== node.id);
+    if (implementedBy.length > 0) {
+      body +=
+        '<p>' +
+        span('Implemented by', 'class-label') +
+        implementedBy
+          .map((x) => render(x))
+          .filter((x) => !!x)
+          .join(', ') +
+        '</p>';
     }
+  }
 
-    if (node.implementedTypes && node.implementedTypes.length > 0) {
-        if (node.implementedTypes.length > 0) {
-            body +=
-                '<p>' +
-                span('Implements', 'class-label') +
-                node.implementedTypes
-                    .map((x) => render(x))
-                    .filter((x) => !!x)
-                    .join(', ') +
-                '</p>';
-        }
-    }
-
-    if (node.extendedBy) {
-        body +=
-            '<p>' +
-            span('Extended by', 'class-label') +
-            node.extendedBy
-                .map((x) => render(x))
-                .filter((x) => !!x)
-                .join(', ') +
-            '</p>';
-    }
-
-    if (node.implementedBy) {
-        // The class is sometimes in its own "implementedBy" list
-        const implementedBy = node.implementedBy.filter(
-            (x) => x.id !== node.id
-        );
-        if (implementedBy.length > 0) {
-            body +=
-                '<p>' +
-                span('Implemented by', 'class-label') +
-                implementedBy
-                    .map((x) => render(x))
-                    .filter((x) => !!x)
-                    .join(', ') +
-                '</p>';
-        }
-    }
-
-    return section(result + div(body) + renderGroups(node), { permalink });
+  return section(result + div(body) + renderGroups(node), { permalink });
 }
 
 /**
@@ -1803,63 +1766,61 @@ function renderClassSection(node: Reflection): string {
  */
 
 function renderClassCard(node) {
-    if (shouldIgnore(node) || !node.children) return '';
-    let comment = renderComment(node, 'block');
-    if (comment) comment += '\n<hr>\n';
-    let body = '';
-    if (node.children) {
-        body =
-            '<dl><dt id="' +
-            filterPrivate(node.children)
-                .map((x: Reflection) => {
-                    const permalink = makePermalink(x);
-                    let r = encodeURIComponent(permalink.anchor) + '">';
-                    if (x.kind === 2048) {
-                        // Method
-                        r +=
-                            x.signatures
-                                .map((signature) => {
-                                    let sigResult =
-                                        renderFlags(x, 'inline') +
-                                        '<strong>' +
-                                        x.name +
-                                        '</strong>';
-                                    if (hasFlag(x, 'isOptional')) {
-                                        sigResult += span('?', 'modifier');
-                                    }
-                                    sigResult +=
-                                        renderPermalinkAnchor(permalink) +
-                                        render(signature) +
-                                        '</dt><dd>' +
-                                        renderComment(signature, 'block');
-                                    return sigResult;
-                                })
-                                .join('</dd><dt>') + '</dd>';
-                    } else if (x.kind === 1024) {
-                        // Property
-                        r += '<strong>' + x.name + '</strong>';
-                        if (hasFlag(x, 'isOptional')) {
-                            r += span('?', 'modifier');
-                        }
-                        r +=
-                            punct(': ') +
-                            render(x.type as Reflection) +
-                            renderPermalinkAnchor(permalink) +
-                            '</dt><dd>' +
-                            renderComment(x, 'block');
-                    } else {
-                        // Only expected a property or a method
-                        // in a "short" class/interface
-                        console.error(
-                            'Unexpected item in a "short" class/interface'
-                        );
-                    }
-                    return r;
+  if (shouldIgnore(node) || !node.children) return '';
+  let comment = renderComment(node, 'block');
+  if (comment) comment += '\n<hr>\n';
+  let body = '';
+  if (node.children) {
+    body =
+      '<dl><dt id="' +
+      filterPrivate(node.children)
+        .map((x: Reflection) => {
+          const permalink = makePermalink(x);
+          let r = encodeURIComponent(permalink.anchor) + '">';
+          if (x.kind === 2048) {
+            // Method
+            r +=
+              x.signatures
+                .map((signature) => {
+                  let sigResult =
+                    renderFlags(x, 'inline') +
+                    '<strong>' +
+                    x.name +
+                    '</strong>';
+                  if (hasFlag(x, 'isOptional')) {
+                    sigResult += span('?', 'modifier');
+                  }
+                  sigResult +=
+                    renderPermalinkAnchor(permalink) +
+                    render(signature) +
+                    '</dt><dd>' +
+                    renderComment(signature, 'block');
+                  return sigResult;
                 })
-                .join('\n</dd><dt id="');
-        body += '\n</dd></dl>\n';
-    }
-    return renderCard(node, getQualifiedName(node), comment + body);
+                .join('</dd><dt>') + '</dd>';
+          } else if (x.kind === 1024) {
+            // Property
+            r += '<strong>' + x.name + '</strong>';
+            if (hasFlag(x, 'isOptional')) {
+              r += span('?', 'modifier');
+            }
+            r +=
+              punct(': ') +
+              render(x.type as Reflection) +
+              renderPermalinkAnchor(permalink) +
+              '</dt><dd>' +
+              renderComment(x, 'block');
+          } else {
+            // Only expected a property or a method
+            // in a "short" class/interface
+            console.error('Unexpected item in a "short" class/interface');
+          }
+          return r;
+        })
+        .join('\n</dd><dt id="');
+    body += '\n</dd></dl>\n';
+  }
+  return renderCard(node, getQualifiedName(node), comment + body);
 }
 
 /**
@@ -1871,90 +1832,89 @@ function renderClassCard(node) {
  * of the interface should be interepreted as methods.
  */
 function renderCommandCard(node) {
-    const parent = getParent(node);
-    const commandTag = (
-        getTag(node, 'command') || getTag(parent, 'command')
-    ).trim();
-    if (!commandTag) return '';
+  const parent = getParent(node);
+  const commandTag = (
+    getTag(node, 'command') || getTag(parent, 'command')
+  ).trim();
+  if (!commandTag) return '';
 
-    let signature;
-    if (node.kind === 1024) {
-        // It's a property
-        if (!node.type.declaration) return '';
-        signature = node.type.declaration.signatures[0];
-    } else if (node.kind === 2048) {
-        // A method
-        signature = node.signatures[0];
-    } else {
-        return '';
-    }
-    const params = [...signature.parameters];
+  let signature;
+  if (node.kind === 1024) {
+    // It's a property
+    if (!node.type.declaration) return '';
+    signature = node.type.declaration.signatures[0];
+  } else if (node.kind === 2048) {
+    // A method
+    signature = node.signatures[0];
+  } else {
+    return '';
+  }
+  const params = [...signature.parameters];
 
-    let result = commandTag + punct('(');
-    params.shift(); // The sender
+  let result = commandTag + punct('(');
+  params.shift(); // The sender
+  if (params.length > 0) {
+    result += punct('[');
+    result += span('"' + node.name + '"', 'string-literal');
+    result += punct(', ');
+    result += params.map((x) => render(x)).join(punct(', '));
+    result += punct(']');
+  } else {
+    // No extra params, just the selector
+    result += span('"' + node.name + '"', 'string-literal');
+  }
+  result += punct(')');
+  if (signature.type) {
+    result += punct(': ');
+    result += render(signature.type);
+  }
+
+  if (params.length > 0 || signature.type) {
+    result += '\n<dl>\n';
+
     if (params.length > 0) {
-        result += punct('[');
-        result += span('"' + node.name + '"', 'string-literal');
-        result += punct(', ');
-        result += params.map((x) => render(x)).join(punct(', '));
-        result += punct(']');
-    } else {
-        // No extra params, just the selector
-        result += span('"' + node.name + '"', 'string-literal');
-    }
-    result += punct(')');
-    if (signature.type) {
-        result += punct(': ');
-        result += render(signature.type);
-    }
-
-    if (params.length > 0 || signature.type) {
-        result += '\n<dl>\n';
-
-        if (params.length > 0) {
-            // Display each of the additional parameters, and their info
-            result +=
-                '\n<dt>\n' +
-                params
-                    .map((param) => {
-                        let r =
-                            '<strong><var>' + param.name + '</var></strong>';
-                        const typeDef = render(param.type, 'block');
-                        if (typeDef) {
-                            r += punct(': ') + typeDef;
-                        }
-                        r += '\n</dt><dd>\n';
-                        r += renderComment(param, 'block');
-                        return r;
-                    })
-                    .join('\n</dd><dt>\n');
-            result += '\n</dd>\n';
-        }
-        if (signature.type && hasTag(node, 'returns')) {
-            // The is a return type
-            result += '\n<dt>\n';
-            result += '<strong>→ </strong>' + render(signature.type);
-            result += '\n</dt><dd>\n';
-            if (hasTag(node, 'returns')) {
-                result += renderNotices(node, getTag(node, 'returns'));
+      // Display each of the additional parameters, and their info
+      result +=
+        '\n<dt>\n' +
+        params
+          .map((param) => {
+            let r = '<strong><var>' + param.name + '</var></strong>';
+            const typeDef = render(param.type, 'block');
+            if (typeDef) {
+              r += punct(': ') + typeDef;
             }
-            result += '\n</dd>\n';
-        }
-        result += '\n</dl>\n';
+            r += '\n</dt><dd>\n';
+            r += renderComment(param, 'block');
+            return r;
+          })
+          .join('\n</dd><dt>\n');
+      result += '\n</dd>\n';
     }
-    result = div(result, 'code');
+    if (signature.type && hasTag(node, 'returns')) {
+      // The is a return type
+      result += '\n<dt>\n';
+      result += '<strong>→ </strong>' + render(signature.type);
+      result += '\n</dt><dd>\n';
+      if (hasTag(node, 'returns')) {
+        result += renderNotices(node, getTag(node, 'returns'));
+      }
+      result += '\n</dd>\n';
+    }
+    result += '\n</dl>\n';
+  }
+  result = div(result, 'code');
 
-    return renderCard(
-        node,
-        // Note: the '&#8203;' (zws) after 'command' is important to ensure
-        // that double-clicking on the name selects only the name
-        span('command', 'modifier-tag') +
-            '<strong>' +
-            '&#8203;' +
-            node.name +
-            '</strong>',
-        result + renderComment(node, 'block')
-    );
+  return renderCard(
+    node,
+    // Note: the '&#8203;' (zws) after 'command' is important to ensure
+    // that double-clicking on the name selects only the name
+    span('command', 'modifier-tag') +
+      '<strong>' +
+      '&#8203;' +
+      node.name +
+      '</strong>',
+    result + renderComment(node, 'block')
+  );
 }
 
 /**
@@ -1963,27 +1923,27 @@ function renderCommandCard(node) {
  * kind = 1024
  */
 function renderPropertyCard(node) {
-    if (shouldIgnore(node)) return '';
+  if (shouldIgnore(node)) return '';
 
-    // The @command tag can be placed either on each individual entry
-    // or on the interface/class that groups them
-    const result = renderCommandCard(node);
-    if (result) return result;
+  // The @command tag can be placed either on each individual entry
+  // or on the interface/class that groups them
+  const result = renderCommandCard(node);
+  if (result) return result;
 
-    const parent = getParent(node);
-    let displayName = '';
-    let shortName = '';
-    if (parent && (parent.kind & (1 | 2 | 4 | 128 | 256)) !== 0) {
-        // Parent is a module, namespace, enum, class or interface
-        // Function or method
-        shortName = `<strong>${node.name}</strong>`;
-        displayName = parent.name + '.' + shortName;
-    }
-    return renderCard(
-        node,
-        displayName,
-        render(node.type, 'block') + renderComment(node, 'block')
-    );
+  const parent = getParent(node);
+  let displayName = '';
+  let shortName = '';
+  if (parent && (parent.kind & (1 | 2 | 4 | 128 | 256)) !== 0) {
+    // Parent is a module, namespace, enum, class or interface
+    // Function or method
+    shortName = `<strong>${node.name}</strong>`;
+    displayName = parent.name + '.' + shortName;
+  }
+  return renderCard(
+    node,
+    displayName,
+    render(node.type, 'block') + renderComment(node, 'block')
+  );
 }
 
 /**
@@ -1991,33 +1951,33 @@ function renderPropertyCard(node) {
  * kind = 4
  */
 function renderEnumCard(node: Reflection): string {
-    if (shouldIgnore(node)) return '';
-    let comment = renderComment(node, 'block');
-    let body = '';
-    if (node.children) {
-        if (comment) comment += '\n<hr>';
-        body += '\n<dl>';
-        body += node.children
-            .map((enumMember) => {
-                return render(enumMember, 'block');
-            })
-            .join('');
-        body += '</dl>';
-    }
-    return renderCard(node, '', comment + body);
+  if (shouldIgnore(node)) return '';
+  let comment = renderComment(node, 'block');
+  let body = '';
+  if (node.children) {
+    if (comment) comment += '\n<hr>';
+    body += '\n<dl>';
+    body += node.children
+      .map((enumMember) => {
+        return render(enumMember, 'block');
+      })
+      .join('');
+    body += '</dl>';
+  }
+  return renderCard(node, '', comment + body);
 }
 
 function renderTypeAliasCard(node: Reflection): string {
-    if (shouldIgnore(node)) return '';
-    let result = renderComment(node, 'block');
-    const typeDef = render(node, 'block');
-    if (typeDef) {
-        if (result) {
-            result += '\n<hr>\n';
-        }
-        result += div(typeDef, 'code');
+  if (shouldIgnore(node)) return '';
+  let result = renderComment(node, 'block');
+  const typeDef = render(node, 'block');
+  if (typeDef) {
+    if (result) {
+      result += '\n<hr>\n';
     }
-    return renderCard(node, '', result);
+    result += div(typeDef, 'code');
+  }
+  return renderCard(node, '', result);
 }
 
 /**
@@ -2036,83 +1996,80 @@ function renderTypeAliasCard(node: Reflection): string {
  *
  */
 function renderGroup(node: Reflection, groupCollection: Reflection[]): string {
-    const categories = [];
-    // Merge the categories of similar groups (methods, get/set)
-    groupCollection.forEach((group) => {
-        getCategories(node, group.kind).forEach((cat) => {
-            const existingCat = categories.find((x) => x.title === cat.title);
-            if (existingCat) {
-                existingCat.children = [
-                    ...existingCat.children,
-                    ...cat.children,
-                ];
-            } else {
-                categories.push(cat);
-            }
-        });
+  const categories = [];
+  // Merge the categories of similar groups (methods, get/set)
+  groupCollection.forEach((group) => {
+    getCategories(node, group.kind).forEach((cat) => {
+      const existingCat = categories.find((x) => x.title === cat.title);
+      if (existingCat) {
+        existingCat.children = [...existingCat.children, ...cat.children];
+      } else {
+        categories.push(cat);
+      }
     });
-    // If there are any children, there should always be at least
-    // one "Other" topic
-    if (categories.length === 0) return '';
-    // Render heading for group, e.g. "Types"... and index
-    let header = '';
-    const kind = categories[0].kind;
-    if (
-        kind !== 512 && // 'Constructors'
-        kind !== 4 // 'Namespaces'
+  });
+  // If there are any children, there should always be at least
+  // one "Other" topic
+  if (categories.length === 0) return '';
+  // Render heading for group, e.g. "Types"... and index
+  let header = '';
+  const kind = categories[0].kind;
+  if (
+    kind !== 512 && // 'Constructors'
+    kind !== 4 // 'Namespaces'
+  ) {
+    if ((kind === 1024 || kind === 2048) && hasTag(node, 'command')) {
+      // It's a series of commands. Display the index, but no title
+      header += renderIndex(node, '', categories);
+    } else if (
+      (kind & (2 | 4 | 128 | 256)) === 0 &&
+      categories.reduce((acc, x) => acc + x.children.length, 0) > 1
     ) {
-        if ((kind === 1024 || kind === 2048) && hasTag(node, 'command')) {
-            // It's a series of commands. Display the index, but no title
-            header += renderIndex(node, '', categories);
-        } else if (
-            (kind & (2 | 4 | 128 | 256)) === 0 &&
-            categories.reduce((acc, x) => acc + x.children.length, 0) > 1
-        ) {
-            // A group of things other than namespaces, enums, classes or
-            // interfaces with more than single entry
-            const displayTitle = {
-                1: 'Modules',
-                2: 'Namespaces',
-                4: 'Enums',
-                32: 'Variables',
-                64: 'Functions',
-                128: 'Classes',
-                245: 'Interfaces',
-                4194304: 'Types',
-            }[kind];
-            header += renderIndex(node, displayTitle, categories);
-        }
+      // A group of things other than namespaces, enums, classes or
+      // interfaces with more than single entry
+      const displayTitle = {
+        1: 'Modules',
+        2: 'Namespaces',
+        4: 'Enums',
+        32: 'Variables',
+        64: 'Functions',
+        128: 'Classes',
+        245: 'Interfaces',
+        4194304: 'Types',
+      }[kind];
+      header += renderIndex(node, displayTitle, categories);
     }
-    const body = categories
-        .map((topic) => {
-            let r = '';
-            if (topic.title) {
-                r = heading(3, '', topic.title, null, {
-                    className: 'category-title',
-                });
-            }
-            const extendedType = node.extendedTypes?.map((x) => x.name) ?? [];
-            r += filterInherited(topic.children)
-                .filter((x) => !extendedType.includes(x.name)) // ??? The parent class is sometimes present as a static property of the subclass
-                .map((x) => render(x, 'section'))
-                .join('');
-            return r;
-        })
+  }
+  const body = categories
+    .map((topic) => {
+      let r = '';
+      if (topic.title) {
+        r = heading(3, '', topic.title, null, {
+          className: 'category-title',
+        });
+      }
+      const extendedType = node.extendedTypes?.map((x) => x.name) ?? [];
+      r += filterInherited(topic.children)
+        .filter((x) => !extendedType.includes(x.name)) // ??? The parent class is sometimes present as a static property of the subclass
+        .map((x) => render(x, 'section'))
         .join('');
-    if (!body) return '';
-    return section(header + body);
+      return r;
+    })
+    .join('');
+  if (!body) return '';
+  return section(header + body);
 }
 
 function renderGroups(node: Reflection): string {
-    if (!node.groups) return '';
-    const groups = sortGroups(node.groups);
-    return (
-        renderComment(node, 'section') +
-        groups
-            .map((x) => renderGroup(node, x))
-            .filter((x) => !!x)
-            .join('\n\n')
-    );
+  if (!node.groups) return '';
+  const groups = sortGroups(node.groups);
+  return (
+    renderComment(node, 'section') +
+    groups
+      .map((x) => renderGroup(node, x))
+      .filter((x) => !!x)
+      .join('\n\n')
+  );
 }
 
 /**
@@ -2127,52 +2084,52 @@ function renderGroups(node: Reflection): string {
  * this item.
  */
 function render(node: Reflection | number, style = 'inline'): string {
-    // See https://github.com/TypeStrong/typedoc/blob/master/src/lib/models/reflections/abstract.ts
-    // for a list of the possible reflection kinds
+  // See https://github.com/TypeStrong/typedoc/blob/master/src/lib/models/reflections/abstract.ts
+  // for a list of the possible reflection kinds
 
-    // On occasion, some nodes are not reachable by traversing the
-    // tree. In this case, getReflectionById() fails and render()
-    // can get called with an undefined node. Fail gracefully.
-    // This happens for example with
-    // ```
-    //   export function foo(options: {
-    //        withHighlighting: boolean;
-    //    }) : boolean
-    // ```
-    // 'withHighlighting' is a variable, but unreachable
+  // On occasion, some nodes are not reachable by traversing the
+  // tree. In this case, getReflectionById() fails and render()
+  // can get called with an undefined node. Fail gracefully.
+  // This happens for example with
+  // ```
+  //   export function foo(options: {
+  //        withHighlighting: boolean;
+  //    }) : boolean
+  // ```
+  // 'withHighlighting' is a variable, but unreachable
 
-    if (typeof node === 'undefined') return '';
-    if (typeof node === 'number') node = getReflectionByID(node);
-    if (typeof node === 'string') node = getReflectionByName(node);
+  if (node === undefined) return '';
+  if (typeof node === 'number') node = getReflectionByID(node);
+  if (typeof node === 'string') node = getReflectionByName(node);
 
-    // If there are groups (i.e. all methods for a class), use them.
-    // Otherwise, node.children will have the full list, but not grouped by 'kind'.
-    if (style === 'section' && node.groups) {
-        if (node.kind === 128 || node.kind === 256) {
-            // Class or Interface
-            return renderClassSection(node);
-        } else if (node.kind === 4) {
-            // Enum
-            return renderEnumCard(node);
-        } else if (node.kind === 1) {
-            // Modules
-            const result = renderGroups(node);
-            if (!result) return '';
-            const permalink = makePermalink(node);
-            return section(
-                heading(2, '', getQualifiedName(node), permalink) + result,
-                { permalink }
-            );
-        }
-        return renderGroups(node);
+  // If there are groups (i.e. all methods for a class), use them.
+  // Otherwise, node.children will have the full list, but not grouped by 'kind'.
+  if (style === 'section' && node.groups) {
+    if (node.kind === 128 || node.kind === 256) {
+      // Class or Interface
+      return renderClassSection(node);
+    } else if (node.kind === 4) {
+      // Enum
+      return renderEnumCard(node);
+    } else if (node.kind === 1) {
+      // Modules
+      const result = renderGroups(node);
+      if (!result) return '';
+      const permalink = makePermalink(node);
+      return section(
+        heading(2, '', getQualifiedName(node), permalink) + result,
+        { permalink }
+      );
     }
+    return renderGroups(node);
+  }
 
-    const parent = getParent(node);
+  const parent = getParent(node);
 
-    if (typeof node.kind === 'undefined') {
-        if (node.type === 'abstract') {
-            // @todo
-            /*
+  if (node.kind === undefined) {
+    if (node.type === 'abstract') {
+      // @todo
+      /*
 abstract class Animal {
     abstract makeSound(): void;
     move(): void {
@@ -2181,731 +2138,703 @@ abstract class Animal {
 }
 */
 
-            console.error('Unexpected node type ', node.type);
-        }
-
-        if (node.type === 'array') {
-            // @check (number | string)[]
-            return render(node.elementType, 'inline') + punct('[]');
-        }
-
-        if (node.type === 'conditionals') {
-            // @todo
-            // 'T extends U ? X : Y'
-            console.error('Unexpected node type ', node.type);
-        }
-
-        if (node.type === 'index') {
-            console.error('Unexpected node type ', node.type);
-        }
-
-        if (node.type === 'indexedAccess') {
-            // e.g. 'T[U]'
-            return (
-                render(node.objectType) +
-                punct('[') +
-                render(node.indexType) +
-                punct(']')
-            );
-        }
-
-        if (node.type === 'inferred') {
-            console.error('Unexpected node type ', node.type);
-        }
-
-        if (node.type === 'intersection') {
-            if (style === 'block') {
-                return (
-                    '<ul class="type-block"><li>' +
-                    node.types
-                        .map((x) => render(x, 'block'))
-                        .filter((x) => !!x)
-                        .join(punct(' &amp; ') + '</li>\n<li>') +
-                    '</li></ul>'
-                );
-            }
-            return node.types
-                .map((x) => render(x))
-                .filter((x) => !!x)
-                .join(punct(' &amp; '));
-        }
-
-        if (node.type === 'intrinsic') {
-            // E.g. "number", "string", etc...
-            return keyword(node.name);
-        }
-
-        if (node.type === 'predicate') {
-            console.error('Unexpected node type ', node.type);
-        }
-
-        if (node.type === 'query') {
-            /*
-             * Represents a type that is constructed by querying the type of a reflection.
-             * ```ts
-             * const x = 1
-             * type Z = typeof x // query on reflection for x
-             * ```
-             */
-            return keyword('typeof ') + render(node.queryType);
-        }
-
-        if (node.type === 'named-tuple-member') {
-            //e.g. [start: number, end: number]
-            return (
-                '<strong>' +
-                node.name +
-                '<strong>' +
-                punct(': ') +
-                render(node.element)
-            );
-        }
-
-        if (node.type === 'reference') {
-            // E.g. the name of another type
-            // For example, T in 'f(a:T)'
-
-            let typeArguments = '';
-            if (node.typeArguments) {
-                typeArguments =
-                    punct('&lt;') +
-                    node.typeArguments.map((x) => render(x)).join(punct(', ')) +
-                    punct('&gt;');
-            }
-
-            // Enum, Class, Interface, TypeAlias
-            let candidate;
-            if (typeof node.id !== 'undefined') {
-                candidate = getReflectionByID(node.id);
-            }
-
-            if (!candidate) {
-                // Find by name in the parent space
-                candidate = getReflectionByName(
-                    node.name,
-                    parent,
-                    4 | 128 | 256 | 4194304
-                );
-            }
-            if (candidate) {
-                return (
-                    renderPermalink(
-                        makePermalink(candidate),
-                        candidate.kind === 16
-                            ? // For enum members, include the parent (the Enum) name
-                              parent.name + '.' + node.name
-                            : node.name
-                    ) + typeArguments
-                );
-            }
-
-            // Find by name in the global space
-            candidate = getReflectionByName(
-                node.name,
-                undefined,
-                4 | 128 | 256 | 4194304
-            );
-            if (candidate) {
-                return (
-                    renderPermalink(makePermalink(candidate), node.name) +
-                    typeArguments
-                );
-            }
-            if (candidate) {
-                return node.name + typeArguments; // Don't render, it's a reference, we just need its name
-            }
-
-            if (
-                [
-                    'Object',
-                    'Function',
-                    'Boolean',
-                    'Symbol',
-                    'String',
-                    'RegExp',
-                    'Object',
-                    'Number',
-                    'BigInt',
-                    'Math',
-                    'Date',
-                    'Infinity',
-                    'NaN',
-                    'globalThis',
-                    'Error',
-                    'AggregateError',
-                    'InternalError',
-                    'RangeError',
-                    'ReferenceError',
-                    'SyntaxError',
-                    'TypeError',
-                    'URIError',
-                    'Array',
-                    'Int8Array',
-                    'Uint8Array',
-                    'Uint8Array',
-                    'Uint8ClampedArray',
-                    'Int16Array',
-                    'Uint16Array',
-                    'Int32Array',
-                    'Uint32Array',
-                    'Float32Array',
-                    'Float64Array',
-                    'BigInt64Array',
-                    'BigUint64Array',
-                    'Map',
-                    'Set',
-                    'WeakMap',
-                    'WeakSet',
-                    'ArrayBuffer',
-                    'SharedArrayBuffer',
-                    'Atomics',
-                    'DataView',
-                    'JSON',
-                    'Promise',
-                    'Generator',
-                    'GeneratorFunction',
-                    'AsyncFunction',
-                    'Iterator',
-                    'AsyncIterator',
-                    'Reflect',
-                    'Proxy',
-                    'Intl',
-                    'WebAssembly',
-                ].includes(node.name)
-            ) {
-                return (
-                    '<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/' +
-                    node.name +
-                    '" class="externallink">' +
-                    node.name +
-                    '<svg><use xlink:href="#external-link"></use></svg>' +
-                    '</a>' +
-                    typeArguments
-                );
-            }
-
-            // Typescript utility types
-            const typescriptUtilityType = {
-                Partial: 'partialtype',
-                Readonly: 'readonlytype',
-                Record: 'recordtype',
-                Pick: 'picktype',
-                Omit: 'omitype',
-                Exclude: 'excludetype',
-                Extract: 'extracttype',
-                NonNullable: 'nonnullabletype',
-                Parameters: 'parameterestype',
-                ConstructorParameters: 'constructorparameterstype',
-                ReturnType: 'returntype',
-                InstanceType: 'instancetype',
-                Required: 'requiredtype',
-                ThisParameterType: 'thisparametertype',
-                OmitThisParameter: 'omitthisparametertype',
-                ThisType: 'thistypetype',
-            }[node.name];
-            if (typescriptUtilityType) {
-                return (
-                    '<a href="https://www.typescriptlang.org/docs/handbook/utility-types.html#' +
-                    typescriptUtilityType +
-                    '" class="externallink">' +
-                    node.name +
-                    '<svg><use xlink:href="#external-link"></use></svg>' +
-                    '</a>' +
-                    typeArguments
-                );
-            }
-
-            // We could not resolve this reference.
-            // This can happen for globally defined types, for example
-            // 'KeyboardEvent'
-            // In that case, create a link to reference documentation
-            return (
-                '<a href="https://developer.mozilla.org/Web/API/' +
-                node.name +
-                '" class="externallink">' +
-                node.name +
-                '<svg><use xlink:href="#external-link"></use></svg>' +
-                '</a>' +
-                typeArguments
-            );
-        }
-
-        if (node.type === 'reflection') {
-            return render(node.declaration, style);
-        }
-
-        if (node.type === 'stringLiteral') {
-            return span('"' + node.value + '"', 'string-literal');
-        }
-
-        if (node.type === 'tuple') {
-            return (
-                punct('[') +
-                node.elements
-                    .map((x) => render(x))
-                    .filter((x) => !!x)
-                    .join(punct(', ')) +
-                punct(']')
-            );
-        }
-
-        if (node.type === 'typeOperator') {
-            // e.g.. 'typeof'
-            return keyword(node.operator + ' ') + render(node.target);
-        }
-
-        if (node.type === 'typeParameter') {
-            // The name of a referenced type, e.g.
-            // 'U' in 'T[U]'
-            let result = renderPermalink(makePermalink(node));
-            if (node.constraint) {
-                result += keyword(' extends ');
-                result += render(node.constraint);
-            }
-            return result;
-        }
-
-        if (node.type === 'union') {
-            // E.g. "a | b"
-            if (style === 'block' && !everyStringLiteral(node.types)) {
-                return (
-                    '<ul class="type-block"><li>' +
-                    punct('| ') +
-                    node.types
-                        .map((x) => render(x))
-                        .join('</li>\n<li>' + punct('| ')) +
-                    '</li></ul>'
-                );
-            }
-            return node.types.map((x) => render(x)).join(punct(' | '));
-        }
-
-        if (node.type === 'unknown') {
-            // This is used when the type is... not known. For example in
-            // `export const PI = 3.1415`, the type is 'unknown' (which has a 'name'
-            // value of "3.1415"
-            return '';
-        }
-
-        if (node.type === 'void') {
-            return keyword('void');
-        }
+      console.error('Unexpected node type ', node.type);
     }
 
-    let result = '';
+    if (node.type === 'array') {
+      // @check (number | string)[]
+      return render(node.elementType, 'inline') + punct('[]');
+    }
 
-    switch (node.kind) {
-        case 0: // Global/File
-        case 1: // Module
-        case 2: // Namespace
-        case 4: // Enum
-            // We always do it by groups
-            console.assert(
-                'Unexpected node kind ',
-                Number(node.kind).toString()
-            );
-            break;
+    if (node.type === 'conditionals') {
+      // @todo
+      // 'T extends U ? X : Y'
+      console.error('Unexpected node type ', node.type);
+    }
 
-        case 16: // Enum Member
-            result = `<dt id="${encodeURIComponent(
-                makePermalink(node).anchor
-            )}">`;
-            result += '<strong>' + node.name + '</strong>';
-            if (typeof node.defaultValue === 'string') {
-                result += punct(' = ') + node.defaultValue;
-            }
-            result += '</dt><dd>';
-            result += renderFlags(node);
-            result += renderComment(node, style);
-            result += '</dd>';
-            break;
+    if (node.type === 'index') {
+      console.error('Unexpected node type ', node.type);
+    }
 
-        case 32: // Variable
-            // e.g. "a?: number" as a property of an object
-            if (style === 'card' || style === 'section') {
-                result = renderCard(
-                    node,
-                    '',
-                    div(render(node, 'block')) + renderComment(node, 'block')
-                );
-            } else {
-                result += '<strong>' + node.name + '</strong>';
-                if (hasFlag(node, 'isOptional')) {
-                    result += span('?', 'modifier');
-                }
-                if ((node.type as Reflection)?.type === 'unknown') {
-                    result += punct(' = ');
-                    result += (node.type as Reflection).name || '';
-                }
-                if ((node.type as Reflection)?.type !== 'unknown') {
-                    result += punct(': ');
-                    result += render(node.type as Reflection);
-                }
-            }
-            break;
+    if (node.type === 'indexedAccess') {
+      // e.g. 'T[U]'
+      return (
+        render(node.objectType) +
+        punct('[') +
+        render(node.indexType) +
+        punct(']')
+      );
+    }
 
-        case 64: // Function
-            if (style === 'card' || style === 'section') {
-                result = renderMethodCard(node);
-            } else {
-                console.warn('Unexpected style, kind ', node.kind);
-            }
-            break;
+    if (node.type === 'inferred') {
+      console.error('Unexpected node type ', node.type);
+    }
 
-        case 128: // Class
-            if (style === 'card' || style === 'section') {
-                // Classes are usually rendered as a 'section' in renderClassSection()
-                // but if it's a very simple interface (uniform kind of children, few comments)
-                // we'll render it as a single card
-                // The decision is made in renderClassSection()
+    if (node.type === 'intersection') {
+      if (style === 'block') {
+        return (
+          '<ul class="type-block"><li>' +
+          node.types
+            .map((x) => render(x, 'block'))
+            .filter((x) => !!x)
+            .join(punct(' &amp; ') + '</li>\n<li>') +
+          '</li></ul>'
+        );
+      }
+      return node.types
+        .map((x) => render(x))
+        .filter((x) => !!x)
+        .join(punct(' &amp; '));
+    }
 
-                result = renderClassCard(node);
-            } else {
-                result = node.name;
-            }
-            break;
+    if (node.type === 'intrinsic') {
+      // E.g. "number", "string", etc...
+      return keyword(node.name);
+    }
 
-        case 256: // Interface
-            if (style === 'card' || style === 'section') {
-                // Interfaces are usually rendered as a 'section' in renderClassSection()
-                // but if it's a very simple interface (uniform kind of children, few comments)
-                // we'll render it as a single card
-                // The decision is made in renderClassSection()
+    if (node.type === 'predicate') {
+      console.error('Unexpected node type ', node.type);
+    }
 
-                result = renderClassCard(node);
-            } else {
-                result = node.name;
-            }
-            break;
+    if (node.type === 'query') {
+      /*
+       * Represents a type that is constructed by querying the type of a reflection.
+       * ```ts
+       * const x = 1
+       * type Z = typeof x // query on reflection for x
+       * ```
+       */
+      return keyword('typeof ') + render(node.queryType);
+    }
 
-        case 512: // Constructor
-            if (style === 'card' || style === 'section') {
-                result = renderMethodCard(node);
-            } else {
-                result = 'constructor' + render(node.signatures[0], style);
-            }
-            break;
+    if (node.type === 'named-tuple-member') {
+      //e.g. [start: number, end: number]
+      return (
+        '<strong>' + node.name + '<strong>' + punct(': ') + render(node.element)
+      );
+    }
 
-        case 1024: // Property (of a class or interface)
-            if (style === 'card' || style === 'section') {
-                result = renderPropertyCard(node);
-            } else {
-                // If not a private symbol (starts with '#')...
-                if (node.name[0] !== '#') {
-                    result =
-                        (parent ? parent.name + '.' : '') +
-                        node.name +
-                        punct(': ') +
-                        render(node.type as Reflection, style);
-                }
-            }
-            break;
+    if (node.type === 'reference') {
+      // E.g. the name of another type
+      // For example, T in 'f(a:T)'
 
-        case 2048: // Method (of a class or interface) (may have multiple signatures)
-            if (style === 'card' || style === 'section') {
-                result = renderMethodCard(node);
-            } else {
-                // Only render the comment
-                // This code path is used with @inheritDoc()
-                result = renderComment(node, 'block');
-            }
-            break;
+      let typeArguments = '';
+      if (node.typeArguments) {
+        typeArguments =
+          punct('&lt;') +
+          node.typeArguments.map((x) => render(x)).join(punct(', ')) +
+          punct('&gt;');
+      }
 
-        case 4096: // Call signature
-        case 16384: // Constructor signature
-            // E.g. in 'f(a: T): U', the '(a: T):U' part.
-            if (style === 'inline') {
-                // (a:b) : c
-                result = punct('(');
-                if (node.parameters) {
-                    result += node.parameters
-                        .map((x) => render(x))
-                        .join(punct(', '));
-                }
-                result += punct(')');
-                result += punct(': ') + render(node.type as Reflection);
-            } else if (style === 'block') {
-                // Display info for each param:
-                // - a: b blah blah
-                // - -> c blah blah
-                if (node.parameters || node.type) {
-                    result += '\n<dl>\n';
-                    if (node.parameters) {
-                        result +=
-                            '\n<dt>\n' +
-                            node.parameters
-                                .map((param) => {
-                                    let r =
-                                        '<strong><var>' +
-                                        param.name +
-                                        '</var></strong>';
-                                    const typeDef = render(
-                                        param.type as Reflection,
-                                        'block'
-                                    );
-                                    if (typeDef) {
-                                        r += punct(': ') + typeDef;
-                                    }
-                                    r += '\n</dt><dd>\n';
-                                    r += renderComment(param, style);
-                                    return r;
-                                })
-                                .join('\n</dd><dt>\n');
-                        result += '\n</dd>\n';
-                    }
-                    if (
-                        node.type &&
-                        (node.comment?.returns ||
-                            !isVoid(node.type as Reflection))
-                    ) {
-                        result += '\n<dt>\n';
-                        result +=
-                            '<strong>→ </strong>' +
-                            render(node.type as Reflection);
-                        result += '\n</dt><dd>\n';
-                        if (node.comment?.returns) {
-                            result += renderNotices(node, node.comment.returns);
-                        }
-                        result += '\n</dd>\n';
-                    }
-                    result += '\n</dl>\n';
-                }
-            } else {
-                console.error('Call signature style not supported');
-            }
-            break;
+      // Enum, Class, Interface, TypeAlias
+      let candidate;
+      if (node.id !== undefined) {
+        candidate = getReflectionByID(node.id);
+      }
 
-        case 8192: // Index signature
-            // E.g. "[key: string]" in "{[key: string]}"
+      if (!candidate) {
+        // Find by name in the parent space
+        candidate = getReflectionByName(
+          node.name,
+          parent,
+          4 | 128 | 256 | 4194304
+        );
+      }
+      if (candidate) {
+        return (
+          renderPermalink(
+            makePermalink(candidate),
+            candidate.kind === 16
+              ? // For enum members, include the parent (the Enum) name
+                parent.name + '.' + node.name
+              : node.name
+          ) + typeArguments
+        );
+      }
+
+      // Find by name in the global space
+      candidate = getReflectionByName(
+        node.name,
+        undefined,
+        4 | 128 | 256 | 4194304
+      );
+      if (candidate) {
+        return (
+          renderPermalink(makePermalink(candidate), node.name) + typeArguments
+        );
+      }
+      if (candidate) {
+        return node.name + typeArguments; // Don't render, it's a reference, we just need its name
+      }
+
+      if (
+        [
+          'Object',
+          'Function',
+          'Boolean',
+          'Symbol',
+          'String',
+          'RegExp',
+          'Object',
+          'Number',
+          'BigInt',
+          'Math',
+          'Date',
+          'Infinity',
+          'NaN',
+          'globalThis',
+          'Error',
+          'AggregateError',
+          'InternalError',
+          'RangeError',
+          'ReferenceError',
+          'SyntaxError',
+          'TypeError',
+          'URIError',
+          'Array',
+          'Int8Array',
+          'Uint8Array',
+          'Uint8Array',
+          'Uint8ClampedArray',
+          'Int16Array',
+          'Uint16Array',
+          'Int32Array',
+          'Uint32Array',
+          'Float32Array',
+          'Float64Array',
+          'BigInt64Array',
+          'BigUint64Array',
+          'Map',
+          'Set',
+          'WeakMap',
+          'WeakSet',
+          'ArrayBuffer',
+          'SharedArrayBuffer',
+          'Atomics',
+          'DataView',
+          'JSON',
+          'Promise',
+          'Generator',
+          'GeneratorFunction',
+          'AsyncFunction',
+          'Iterator',
+          'AsyncIterator',
+          'Reflect',
+          'Proxy',
+          'Intl',
+          'WebAssembly',
+        ].includes(node.name)
+      ) {
+        return (
+          '<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/' +
+          node.name +
+          '" class="externallink">' +
+          node.name +
+          '<svg><use xlink:href="#external-link"></use></svg>' +
+          '</a>' +
+          typeArguments
+        );
+      }
+
+      // Typescript utility types
+      const typescriptUtilityType = {
+        Partial: 'partialtype',
+        Readonly: 'readonlytype',
+        Record: 'recordtype',
+        Pick: 'picktype',
+        Omit: 'omitype',
+        Exclude: 'excludetype',
+        Extract: 'extracttype',
+        NonNullable: 'nonnullabletype',
+        Parameters: 'parameterestype',
+        ConstructorParameters: 'constructorparameterstype',
+        ReturnType: 'returntype',
+        InstanceType: 'instancetype',
+        Required: 'requiredtype',
+        ThisParameterType: 'thisparametertype',
+        OmitThisParameter: 'omitthisparametertype',
+        ThisType: 'thistypetype',
+      }[node.name];
+      if (typescriptUtilityType) {
+        return (
+          '<a href="https://www.typescriptlang.org/docs/handbook/utility-types.html#' +
+          typescriptUtilityType +
+          '" class="externallink">' +
+          node.name +
+          '<svg><use xlink:href="#external-link"></use></svg>' +
+          '</a>' +
+          typeArguments
+        );
+      }
+
+      // We could not resolve this reference.
+      // This can happen for globally defined types, for example
+      // 'KeyboardEvent'
+      // In that case, create a link to reference documentation
+      return (
+        '<a href="https://developer.mozilla.org/Web/API/' +
+        node.name +
+        '" class="externallink">' +
+        node.name +
+        '<svg><use xlink:href="#external-link"></use></svg>' +
+        '</a>' +
+        typeArguments
+      );
+    }
+
+    if (node.type === 'reflection') {
+      return render(node.declaration, style);
+    }
+
+    if (node.type === 'stringLiteral') {
+      return span('"' + node.value + '"', 'string-literal');
+    }
+
+    if (node.type === 'tuple') {
+      return (
+        punct('[') +
+        node.elements
+          .map((x) => render(x))
+          .filter((x) => !!x)
+          .join(punct(', ')) +
+        punct(']')
+      );
+    }
+
+    if (node.type === 'typeOperator') {
+      // e.g.. 'typeof'
+      return keyword(node.operator + ' ') + render(node.target);
+    }
+
+    if (node.type === 'typeParameter') {
+      // The name of a referenced type, e.g.
+      // 'U' in 'T[U]'
+      let result = renderPermalink(makePermalink(node));
+      if (node.constraint) {
+        result += keyword(' extends ');
+        result += render(node.constraint);
+      }
+      return result;
+    }
+
+    if (node.type === 'union') {
+      // E.g. "a | b"
+      if (style === 'block' && !everyStringLiteral(node.types)) {
+        return (
+          '<ul class="type-block"><li>' +
+          punct('| ') +
+          node.types.map((x) => render(x)).join('</li>\n<li>' + punct('| ')) +
+          '</li></ul>'
+        );
+      }
+      return node.types.map((x) => render(x)).join(punct(' | '));
+    }
+
+    if (node.type === 'unknown') {
+      // This is used when the type is... not known. For example in
+      // `export const PI = 3.1415`, the type is 'unknown' (which has a 'name'
+      // value of "3.1415"
+      return '';
+    }
+
+    if (node.type === 'void') {
+      return keyword('void');
+    }
+  }
+
+  let result = '';
+
+  switch (node.kind) {
+    case 0: // Global/File
+    case 1: // Module
+    case 2: // Namespace
+    case 4: // Enum
+      // We always do it by groups
+      console.assert('Unexpected node kind ', Number(node.kind).toString());
+      break;
+
+    case 16: // Enum Member
+      result = `<dt id="${encodeURIComponent(makePermalink(node).anchor)}">`;
+      result += '<strong>' + node.name + '</strong>';
+      if (typeof node.defaultValue === 'string') {
+        result += punct(' = ') + node.defaultValue;
+      }
+      result += '</dt><dd>';
+      result += renderFlags(node);
+      result += renderComment(node, style);
+      result += '</dd>';
+      break;
+
+    case 32: // Variable
+      // e.g. "a?: number" as a property of an object
+      if (style === 'card' || style === 'section') {
+        result = renderCard(
+          node,
+          '',
+          div(render(node, 'block')) + renderComment(node, 'block')
+        );
+      } else {
+        result += '<strong>' + node.name + '</strong>';
+        if (hasFlag(node, 'isOptional')) {
+          result += span('?', 'modifier');
+        }
+        if ((node.type as Reflection)?.type === 'unknown') {
+          result += punct(' = ');
+          result += (node.type as Reflection).name || '';
+        }
+        if ((node.type as Reflection)?.type !== 'unknown') {
+          result += punct(': ');
+          result += render(node.type as Reflection);
+        }
+      }
+      break;
+
+    case 64: // Function
+      if (style === 'card' || style === 'section') {
+        result = renderMethodCard(node);
+      } else {
+        console.warn('Unexpected style, kind ', node.kind);
+      }
+      break;
+
+    case 128: // Class
+      if (style === 'card' || style === 'section') {
+        // Classes are usually rendered as a 'section' in renderClassSection()
+        // but if it's a very simple interface (uniform kind of children, few comments)
+        // we'll render it as a single card
+        // The decision is made in renderClassSection()
+
+        result = renderClassCard(node);
+      } else {
+        result = node.name;
+      }
+      break;
+
+    case 256: // Interface
+      if (style === 'card' || style === 'section') {
+        // Interfaces are usually rendered as a 'section' in renderClassSection()
+        // but if it's a very simple interface (uniform kind of children, few comments)
+        // we'll render it as a single card
+        // The decision is made in renderClassSection()
+
+        result = renderClassCard(node);
+      } else {
+        result = node.name;
+      }
+      break;
+
+    case 512: // Constructor
+      if (style === 'card' || style === 'section') {
+        result = renderMethodCard(node);
+      } else {
+        result = 'constructor' + render(node.signatures[0], style);
+      }
+      break;
+
+    case 1024: // Property (of a class or interface)
+      if (style === 'card' || style === 'section') {
+        result = renderPropertyCard(node);
+      } else {
+        // If not a private symbol (starts with '#')...
+        if (node.name[0] !== '#') {
+          result =
+            (parent ? parent.name + '.' : '') +
+            node.name +
+            punct(': ') +
+            render(node.type as Reflection, style);
+        }
+      }
+      break;
+
+    case 2048: // Method (of a class or interface) (may have multiple signatures)
+      if (style === 'card' || style === 'section') {
+        result = renderMethodCard(node);
+      } else {
+        // Only render the comment
+        // This code path is used with @inheritDoc()
+        result = renderComment(node, 'block');
+      }
+      break;
+
+    case 4096: // Call signature
+    case 16384: // Constructor signature
+      // E.g. in 'f(a: T): U', the '(a: T):U' part.
+      if (style === 'inline') {
+        // (a:b) : c
+        result = punct('(');
+        if (node.parameters) {
+          result += node.parameters.map((x) => render(x)).join(punct(', '));
+        }
+        result += punct(')');
+        result += punct(': ') + render(node.type as Reflection);
+      } else if (style === 'block') {
+        // Display info for each param:
+        // - a: b blah blah
+        // - -> c blah blah
+        if (node.parameters || node.type) {
+          result += '\n<dl>\n';
+          if (node.parameters) {
             result +=
-                punct('[') +
-                node.parameters.map((x) => render(x)).join(punct(', ')) +
-                punct(']');
-            result += punct(': ') + render(node.type as Reflection);
-            break;
-
-        // case 16384: // Constructor signature
-        // console.warn('Unexpected kind ', node.kind);
-        // break;
-
-        case 32768: // Parameter
-            // E.g. "foo: string" in "[foo: string]: string"
-            // Also "a:T" in "f(a:T)"
-            if (hasFlag(node, 'isRest')) {
-                result += span('...', 'modifier');
+              '\n<dt>\n' +
+              node.parameters
+                .map((param) => {
+                  let r = '<strong><var>' + param.name + '</var></strong>';
+                  const typeDef = render(param.type as Reflection, 'block');
+                  if (typeDef) {
+                    r += punct(': ') + typeDef;
+                  }
+                  r += '\n</dt><dd>\n';
+                  r += renderComment(param, style);
+                  return r;
+                })
+                .join('\n</dd><dt>\n');
+            result += '\n</dd>\n';
+          }
+          if (
+            node.type &&
+            (node.comment?.returns || !isVoid(node.type as Reflection))
+          ) {
+            result += '\n<dt>\n';
+            result += '<strong>→ </strong>' + render(node.type as Reflection);
+            result += '\n</dt><dd>\n';
+            if (node.comment?.returns) {
+              result += renderNotices(node, node.comment.returns);
             }
-            result += `<var>${node.name}</var>`;
-            if (hasFlag(node, 'isOptional')) {
-                result += span('?', 'modifier');
-            }
-            result += punct(': ') + render(node.type as Reflection);
-            break;
+            result += '\n</dd>\n';
+          }
+          result += '\n</dl>\n';
+        }
+      } else {
+        console.error('Call signature style not supported');
+      }
+      break;
 
-        case 65536: // Type literal
-            // e.g. '{...}' or  '(x: string) => boolean'
-            if (node.signatures) {
-                result += node.signatures
-                    .map((x) => render(x))
-                    .join(punct('; '));
-            } else if (node.children || node.indexSignature) {
-                // E.g. `{ p: T; q: U }`
-                if (style === 'block' || style === 'block-inherit') {
-                    result += '<div><dl>';
-                    if (node.children) {
-                        result +=
-                            '<dt>' +
-                            node.children
-                                .map((x) => {
-                                    let dt = render(x) + punct(';');
-                                    if (hasTag(x, 'deprecated')) {
-                                        dt = span(dt, 'deprecated');
-                                    }
-                                    const dd =
-                                        renderFlags(x) +
-                                        renderComment(x, style);
-                                    return dt + '</dt><dd>' + dd;
-                                })
-                                .join('</dd><dt>');
-                        result += '</dd>';
-                    }
-                    if (node.indexSignature) {
-                        result += '<dt>';
-                        result += node.indexSignature
-                            .map((x) => render(x))
-                            .join(punct(';') + '</dt><dd>');
-                        result += '</dd>';
-                    }
-                    result += '</dl>' + '</div>';
-                } else if (style === 'inline') {
-                    result += punct('{');
-                    if (node.children) {
-                        result += node.children
-                            .map((x) => render(x))
-                            .join(punct('; '));
-                    }
-                    if (node.indexSignature) {
-                        result += node.indexSignature
-                            .map((x) => render(x))
-                            .join(punct('; '));
-                    }
-                    result += punct('}');
-                } else {
-                    console.error('Unexpected style for Type Literal');
-                }
-            }
-            break;
+    case 8192: // Index signature
+      // E.g. "[key: string]" in "{[key: string]}"
+      result +=
+        punct('[') +
+        node.parameters.map((x) => render(x)).join(punct(', ')) +
+        punct(']');
+      result += punct(': ') + render(node.type as Reflection);
+      break;
 
-        case 131072: // Type parameter
-            result += node.name;
-            if (node.type) {
-                result += keyword(' extends ');
-                result += render(node.type as Reflection);
-            }
-            break;
+    // case 16384: // Constructor signature
+    // console.warn('Unexpected kind ', node.kind);
+    // break;
 
-        case 524288: // Get signature
-        case 1048576: // Set signature
-            // The signature for the get/set should never be rendered.
-            // They are aggregated in their parent 'Accessor' node
-            console.warn(
-                `Unexpected kind = ${node.kind} for ${getQualifiedName(
-                    node
-                ).replace(/<[^>]*>/g, ' ')}`
-            );
-            break;
+    case 32768: // Parameter
+      // E.g. "foo: string" in "[foo: string]: string"
+      // Also "a:T" in "f(a:T)"
+      if (hasFlag(node, 'isRest')) {
+        result += span('...', 'modifier');
+      }
+      result += `<var>${node.name}</var>`;
+      if (hasFlag(node, 'isOptional')) {
+        result += span('?', 'modifier');
+      }
+      result += punct(': ') + render(node.type as Reflection);
+      break;
 
-        case 262144: // Accessor (get/set)
-            if (style === 'card' || style === 'section') {
-                result = renderAccessorCard(node);
-            } else {
-                console.warn('Unexpected style, kind ', node.kind);
-            }
-            break;
+    case 65536: // Type literal
+      // e.g. '{...}' or  '(x: string) => boolean'
+      if (node.signatures) {
+        result += node.signatures.map((x) => render(x)).join(punct('; '));
+      } else if (node.children || node.indexSignature) {
+        // E.g. `{ p: T; q: U }`
+        if (style === 'block' || style === 'block-inherit') {
+          result += '<div><dl>';
+          if (node.children) {
+            result +=
+              '<dt>' +
+              node.children
+                .map((x) => {
+                  let dt = render(x) + punct(';');
+                  if (hasTag(x, 'deprecated')) {
+                    dt = span(dt, 'deprecated');
+                  }
+                  const dd = renderFlags(x) + renderComment(x, style);
+                  return dt + '</dt><dd>' + dd;
+                })
+                .join('</dd><dt>');
+            result += '</dd>';
+          }
+          if (node.indexSignature) {
+            result += '<dt>';
+            result += node.indexSignature
+              .map((x) => render(x))
+              .join(punct(';') + '</dt><dd>');
+            result += '</dd>';
+          }
+          result += '</dl>' + '</div>';
+        } else if (style === 'inline') {
+          result += punct('{');
+          if (node.children) {
+            result += node.children.map((x) => render(x)).join(punct('; '));
+          }
+          if (node.indexSignature) {
+            result += node.indexSignature
+              .map((x) => render(x))
+              .join(punct('; '));
+          }
+          result += punct('}');
+        } else {
+          console.error('Unexpected style for Type Literal');
+        }
+      }
+      break;
 
-        case 2097152: // Object literal
-            console.warn('Unexpected style, kind ', node.kind);
-            break;
+    case 131072: // Type parameter
+      result += node.name;
+      if (node.type) {
+        result += keyword(' extends ');
+        result += render(node.type as Reflection);
+      }
+      break;
 
-        case 4194304: // Type Alias
-            // e.g. 'type foo = string';
-            if (style === 'card' || style === 'section') {
-                result = renderTypeAliasCard(node);
-            } else {
-                const def = render(node.type as Reflection, style);
-                result = '';
-                if (node.typeParameter) {
-                    result += punct('&lt;');
-                    result += node.typeParameter
-                        .map((typeParam) => render(typeParam))
-                        .join(punct(', '));
-                    result += punct('&gt;');
-                    if (def) {
-                        result += punct(' = ');
-                    }
-                }
-                result += def;
-            }
-            break;
+    case 524288: // Get signature
+    case 1048576: // Set signature
+      // The signature for the get/set should never be rendered.
+      // They are aggregated in their parent 'Accessor' node
+      console.warn(
+        `Unexpected kind = ${node.kind} for ${getQualifiedName(node).replace(
+          /<[^>]*>/g,
+          ' '
+        )}`
+      );
+      break;
 
-        case 8388608: // Event
-            console.warn('Unexpected style, kind ', node.kind);
-            break;
-        case 16777216: // Reference
-            break;
-        default:
-            console.warn(
-                `Unexpected kind = ${
-                    node.kind ?? node.type
-                } for ${getQualifiedName(node).replace(/<[^>]*>/g, ' ')}`
-            );
-    }
+    case 262144: // Accessor (get/set)
+      if (style === 'card' || style === 'section') {
+        result = renderAccessorCard(node);
+      } else {
+        console.warn('Unexpected style, kind ', node.kind);
+      }
+      break;
 
-    return result;
+    case 2097152: // Object literal
+      console.warn('Unexpected style, kind ', node.kind);
+      break;
+
+    case 4194304: // Type Alias
+      // e.g. 'type foo = string';
+      if (style === 'card' || style === 'section') {
+        result = renderTypeAliasCard(node);
+      } else {
+        const def = render(node.type as Reflection, style);
+        result = '';
+        if (node.typeParameter) {
+          result += punct('&lt;');
+          result += node.typeParameter
+            .map((typeParam) => render(typeParam))
+            .join(punct(', '));
+          result += punct('&gt;');
+          if (def) {
+            result += punct(' = ');
+          }
+        }
+        result += def;
+      }
+      break;
+
+    case 8388608: // Event
+      console.warn('Unexpected style, kind ', node.kind);
+      break;
+    case 16777216: // Reference
+      break;
+    default:
+      console.warn(
+        `Unexpected kind = ${node.kind ?? node.type} for ${getQualifiedName(
+          node
+        ).replace(/<[^>]*>/g, ' ')}`
+      );
+  }
+
+  return result;
 }
 
 function getReflectionsFromFile(src: string[], options: Options): Reflection {
-    let result = {};
-    const app = new TypeDoc.Application();
+  let result = {};
+  const app = new TypeDoc.Application();
 
-    // If you want TypeDoc to load tsconfig.json / typedoc.json files
-    app.options.addReader(new TypeDoc.TSConfigReader());
-    app.options.addReader(new TypeDoc.TypeDocReader());
+  // If you want TypeDoc to load tsconfig.json / typedoc.json files
+  app.options.addReader(new TypeDoc.TSConfigReader());
+  app.options.addReader(new TypeDoc.TypeDocReader());
 
-    app.bootstrap({
-        logger: (message, _level, _newline) => console.log(message),
-        mode: 'modules', // or 'file', 'modules' or 'library'
+  app.bootstrap({
+    logger: (message, _level, _newline) => console.log(message),
+    mode: 'modules', // or 'file', 'modules' or 'library'
 
-        // target: 'es2019', // 99, // ScriptTarget.ESNext,
-        // module: 'ESNext', // 99, // TypeDoc.ModuleKind.ESNext,
-        // experimentalDecorators: true,
+    // target: 'es2019', // 99, // ScriptTarget.ESNext,
+    // module: 'ESNext', // 99, // TypeDoc.ModuleKind.ESNext,
+    // experimentalDecorators: true,
 
-        // To properly resolve 'import' statements
-        // moduleResolution: 'node', // 2,
+    // To properly resolve 'import' statements
+    // moduleResolution: 'node', // 2,
 
-        noEmit: 'true', // true,
+    noEmit: 'true', // true,
 
-        // We want to preserve the internals in the AST
-        // and we'll strip/hide them separately
-        stripInternal: false,
+    // We want to preserve the internals in the AST
+    // and we'll strip/hide them separately
+    stripInternal: false,
 
-        // To process .d.ts files
-        includeDeclarations: true,
+    // To process .d.ts files
+    includeDeclarations: true,
 
-        // To exclude references from external files
-        excludeExternals: true,
+    // To exclude references from external files
+    excludeExternals: true,
 
-        exclude:
-            typeof options.exclude === 'string'
-                ? [options.exclude]
-                : options.exclude ?? [],
-    });
+    exclude:
+      typeof options.exclude === 'string'
+        ? [options.exclude]
+        : options.exclude ?? [],
+  });
 
-    src = app.expandInputFiles(
-        src.map((x) => {
-            const f = path.resolve(path.normalize(x));
-            if (!fs.existsSync(f)) {
-                console.warn('File not found "' + f + '"');
-            }
-            return f;
-        })
-    );
+  src = app.expandInputFiles(
+    src.map((x) => {
+      const f = path.resolve(path.normalize(x));
+      if (!fs.existsSync(f)) {
+        console.warn('File not found "' + f + '"');
+      }
+      return f;
+    })
+  );
 
-    const convertResult = app.converter.convert(src);
-    if (convertResult.errors?.length) {
-        app.logger.diagnostics(convertResult.errors);
-        if (options.ignoreErrors) {
-            app.logger.resetErrors();
-        } else {
-            return undefined;
-        }
+  const convertResult = app.converter.convert(src);
+  if (convertResult.errors?.length) {
+    app.logger.diagnostics(convertResult.errors);
+    if (options.ignoreErrors) {
+      app.logger.resetErrors();
+    } else {
+      return undefined;
     }
+  }
 
-    if (convertResult.project) {
-        result = app.serializer.projectToObject(convertResult.project);
-    }
+  if (convertResult.project) {
+    result = app.serializer.projectToObject(convertResult.project);
+  }
 
-    return result as Reflection;
+  return result as Reflection;
 }
 
 function applyTemplate(
-    src: string | ((substitutions: { [key: string]: any }) => string),
-    substitutions: { [key: string]: any }
+  src: string | ((substitutions: { [key: string]: any }) => string),
+  substitutions: { [key: string]: any }
 ): string {
-    if (typeof src === 'string') {
-        Object.keys(substitutions).forEach((key) => {
-            if (typeof substitutions[key] === 'string') {
-                src = (src as string).replace(
-                    new RegExp('{{' + key + '}}', 'g'),
-                    substitutions[key]
-                );
-            }
-        });
-        return src;
-    }
-    if (typeof src === 'function') {
-        return src(substitutions);
-    }
-    return '';
+  if (typeof src === 'string') {
+    Object.keys(substitutions).forEach((key) => {
+      if (typeof substitutions[key] === 'string') {
+        src = (src as string).replace(
+          new RegExp('{{' + key + '}}', 'g'),
+          substitutions[key]
+        );
+      }
+    });
+    return src;
+  }
+  if (typeof src === 'function') {
+    return src(substitutions);
+  }
+  return '';
 }
 
 let gNodes: Reflection;
@@ -2918,92 +2847,90 @@ let gOptions: Options;
  */
 
 export function grok(
-    src: string[],
-    options: Options
+  src: string[],
+  options: Options
 ): { [file: string]: string } {
-    try {
-        gOptions = options;
-        gNodes = getReflectionsFromFile(src, options);
+  try {
+    gOptions = options;
+    gNodes = getReflectionsFromFile(src, options);
 
-        const sdkName = options.sdkName ?? '';
-        const packageName = gNodes.name ?? options.sdkName ?? '';
+    const sdkName = options.sdkName ?? '';
+    const packageName = gNodes.name ?? options.sdkName ?? '';
 
-        let moduleName = '';
-        let className = '';
-        let content;
-        let directoryName = '';
+    let moduleName = '';
+    let className = '';
+    let content;
+    let directoryName = '';
 
-        if (src.length === 1) {
-            if (fs.lstatSync(src[0]).isDirectory()) {
-                directoryName = path.basename(src[0]);
-            }
-        }
-
-        if (options.modules && options.modules.length > 0) {
-            const modules = options.modules
-                .map((x) => getReflectionByName(x, gNodes, 1))
-                .filter((x) => !!x);
-            if (modules.length === 0) {
-                console.warn(
-                    'Modules ' +
-                        options.modules.join(', ') +
-                        ' not found in "' +
-                        src +
-                        '"'
-                );
-            } else if (modules.length !== options.modules.length) {
-                const moduleNames = modules.map((x) => getName(x));
-                console.warn(
-                    'Module "' +
-                        options.modules
-                            .filter((x) => !moduleNames.includes(x))
-                            .join(', ') +
-                        '" not found in "' +
-                        src +
-                        '"'
-                );
-            }
-            if (gNodes.children.length === 1) {
-                content = renderIndex(gNodes.children[1]);
-            } else {
-                content = renderIndex(gNodes, 'Modules', [
-                    {
-                        kind: 1,
-                        title: '',
-                        children: modules,
-                    },
-                ]);
-            }
-            content += modules.map((x) => render(x, 'section')).join('');
-            content = section(content);
-            moduleName = options.modules[0] ?? '';
-
-            gNodes.children.forEach((module) => {
-                if (!className) {
-                    module.children.forEach((topLevelNode) => {
-                        if (topLevelNode.kind === 128) {
-                            // We've found a class
-                            className = topLevelNode.name;
-                        }
-                    });
-                }
-            });
-        }
-        if (!content) content = render(gNodes, 'section');
-        if (content) {
-            const document = applyTemplate(options.documentTemplate, {
-                directoryName: escapeYAMLString(directoryName),
-                className: escapeYAMLString(className),
-                moduleName: escapeYAMLString(moduleName),
-                packageName: escapeYAMLString(packageName),
-                sdkName: escapeYAMLString(trimNewline(sdkName)),
-                cssVariables: options.cssVariables,
-                content,
-            });
-            return { [options.outFile ?? 'index.html']: document };
-        }
-    } catch (err) {
-        console.error(err);
+    if (src.length === 1) {
+      if (fs.lstatSync(src[0]).isDirectory()) {
+        directoryName = path.basename(src[0]);
+      }
     }
-    return {};
+
+    if (options.modules && options.modules.length > 0) {
+      const modules = options.modules
+        .map((x) => getReflectionByName(x, gNodes, 1))
+        .filter((x) => !!x);
+      if (modules.length === 0) {
+        console.warn(
+          'Modules ' +
+            options.modules.join(', ') +
+            ' not found in "' +
+            src +
+            '"'
+        );
+      } else if (modules.length !== options.modules.length) {
+        const moduleNames = modules.map((x) => getName(x));
+        console.warn(
+          'Module "' +
+            options.modules.filter((x) => !moduleNames.includes(x)).join(', ') +
+            '" not found in "' +
+            src +
+            '"'
+        );
+      }
+      if (gNodes.children.length === 1) {
+        content = renderIndex(gNodes.children[1]);
+      } else {
+        content = renderIndex(gNodes, 'Modules', [
+          {
+            kind: 1,
+            title: '',
+            children: modules,
+          },
+        ]);
+      }
+      content += modules.map((x) => render(x, 'section')).join('');
+      content = section(content);
+      moduleName = options.modules[0] ?? '';
+
+      gNodes.children.forEach((module) => {
+        if (!className) {
+          module.children.forEach((topLevelNode) => {
+            if (topLevelNode.kind === 128) {
+              // We've found a class
+              className = topLevelNode.name;
+            }
+          });
+        }
+      });
+    }
+    if (!content) content = render(gNodes, 'section');
+    if (content) {
+      const document = applyTemplate(options.documentTemplate, {
+        directoryName: escapeYAMLString(directoryName),
+        className: escapeYAMLString(className),
+        moduleName: escapeYAMLString(moduleName),
+        packageName: escapeYAMLString(packageName),
+        sdkName: escapeYAMLString(trimNewline(sdkName)),
+        cssVariables: options.cssVariables,
+        content,
+      });
+      return { [options.outFile ?? 'index.html']: document };
+    }
+  } catch (err) {
+    console.error(err);
+  }
+  return {};
 }

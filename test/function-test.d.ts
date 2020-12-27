@@ -12,9 +12,9 @@ declare function mainEntryPoint(one: string): boolean;
  */
 
 declare function foo(
-    options?: {
-        withHighlighting: boolean;
-        anotherOption: string;
-    },
-    ...other
+  options?: {
+    withHighlighting: boolean;
+    anotherOption: string;
+  },
+  ...other
 ): boolean;

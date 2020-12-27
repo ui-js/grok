@@ -18,47 +18,47 @@ import { terminal } from './terminal';
  * Merge "source" into object by doing a deep copy of enumerable properties.
  */
 function mergeObject(object: any, source: any): any {
-    if (object === source) return;
-    if (!source) return;
-    Object.keys(source).forEach((key) => {
-        if (Array.isArray(source[key])) {
-            if (!object[key]) object[key] = [];
-            object[key] = [...object[key], ...source[key]];
-        } else if (typeof source[key] === 'object') {
-            // Object literal
-            if (!object[key]) object[key] = {};
-            mergeObject(object[key], source[key]);
-        } else if (typeof source[key] !== 'undefined') {
-            object[key] = source[key];
-        }
-    });
+  if (object === source) return;
+  if (!source) return;
+  Object.keys(source).forEach((key) => {
+    if (Array.isArray(source[key])) {
+      if (!object[key]) object[key] = [];
+      object[key] = [...object[key], ...source[key]];
+    } else if (typeof source[key] === 'object') {
+      // Object literal
+      if (!object[key]) object[key] = {};
+      mergeObject(object[key], source[key]);
+    } else if (source[key] !== undefined) {
+      object[key] = source[key];
+    }
+  });
 }
 
 function outputResult(
-    outDir: string,
-    result: { [file: string]: string }
+  outDir: string,
+  result: { [file: string]: string }
 ): void {
-    fs.mkdir(outDir, { recursive: true });
-    Object.keys(result).forEach((x) => {
-        fs.writeFileSync(
-            path.resolve(path.normalize(path.join(outDir, x))),
-            result[x]
-        );
-    });
+  fs.mkdir(outDir, { recursive: true });
+  Object.keys(result).forEach((x) => {
+    fs.writeFileSync(
+      path.resolve(path.normalize(path.join(outDir, x))),
+      result[x]
+    );
+  });
 }
 
 function build(argv): void {
-    try {
-        const options = {
-            sdkName: 'module',
-            verbose: false,
-            exclude: [],
-            tutorialPath: '',
-            cssVariables: {
-                monospace: 'IBM Plex Mono, monospace',
-                'primary-color': '#0066ce',
-            },
-            documentTemplate: (options) => `<!doctype html>
+  try {
+    const options = {
+      sdkName: 'module',
+      verbose: false,
+      exclude: [],
+      tutorialPath: '',
+      cssVariables: {
+        'monospace': 'IBM Plex Mono, monospace',
+        'primary-color': '#0066ce',
+      },
+      documentTemplate: (options) => `<!doctype html>
 <html class="no-js" lang="">
 
 <head>
@@ -71,8 +71,8 @@ function build(argv): void {
     <link rel="apple-touch-icon" href="icon.png">
     <style>
     body {${Object.keys(options.cssVariables)
-        .map((x) => '--' + x + ':' + options.cssVariables[x])
-        .join(';')}}
+      .map((x) => '--' + x + ':' + options.cssVariables[x])
+      .join(';')}}
     .main {
         margin: auto;
         max-width: 820px;
@@ -287,117 +287,117 @@ function build(argv): void {
 </body>    
 </html>
 `,
-        };
+    };
 
-        //
-        // 1. Load from 'standard' config locations
-        //
-        let configResult = configParser.search();
-        if (!!configResult?.config) {
-            mergeObject(options, configResult.config);
-        }
-
-        //
-        // 2. If a config file is specified, merge with previous config
-        //
-        if (argv['config']) {
-            configResult = configParser.load(argv['config']);
-            if (!!configResult?.config) {
-                mergeObject(options, configResult.config);
-            }
-        }
-
-        //
-        // 3. If command-line options are specified, merge with previous config
-        //
-
-        mergeObject(options, argv);
-
-        //
-        // 4. Process the command
-        //
-        if (!argv['paths'] || argv['paths'].length < 1) {
-            console.error(
-                terminal.error() +
-                    `Expected at least one path to a directory or TypeScript declaration file.\n` +
-                    `    Use ${terminal.keyword(
-                        argv.$0 + ' help'
-                    )} for available options.\n`
-            );
-            process.exit(1);
-        }
-
-        outputResult(options['outDir'] || '.', grok(argv['paths'], options));
-    } catch (err) {
-        console.error(err);
+    //
+    // 1. Load from 'standard' config locations
+    //
+    let configResult = configParser.search();
+    if (!!configResult?.config) {
+      mergeObject(options, configResult.config);
     }
+
+    //
+    // 2. If a config file is specified, merge with previous config
+    //
+    if (argv['config']) {
+      configResult = configParser.load(argv['config']);
+      if (!!configResult?.config) {
+        mergeObject(options, configResult.config);
+      }
+    }
+
+    //
+    // 3. If command-line options are specified, merge with previous config
+    //
+
+    mergeObject(options, argv);
+
+    //
+    // 4. Process the command
+    //
+    if (!argv['paths'] || argv['paths'].length < 1) {
+      console.error(
+        terminal.error() +
+          `Expected at least one path to a directory or TypeScript declaration file.\n` +
+          `    Use ${terminal.keyword(
+            argv.$0 + ' help'
+          )} for available options.\n`
+      );
+      process.exit(1);
+    }
+
+    outputResult(options['outDir'] || '.', grok(argv['paths'], options));
+  } catch (err) {
+    console.error(err);
+  }
 }
 
 function buildOptions(yargs): void {
-    yargs
-        .positional('<path>', {
-            describe: 'Path to a TypeScript declaration file or directory',
-            type: 'path',
-        })
-        .normalize('path')
-        .option('sdkName', {
-            describe: 'Name of the API/Library/Module being documented',
-            type: 'string',
-        })
-        .option('outFile', {
-            describe: 'Save output to file (in outDir)',
-            type: 'path',
-        })
-        .normalize('outFile')
-        .option('outDir', {
-            alias: 'o',
-            describe: 'Save output to path',
-            type: 'path',
-        })
-        .normalize('outDir')
-        .option('config', {
-            describe: 'Load config file from path',
-            type: 'path',
-        })
-        .normalize('config')
-        .option('verbose', {
-            describe: 'Display additional information during processing',
-            type: 'boolean',
-        })
-        .option('no-color', {
-            describe: 'Suppress color output in terminal',
-            type: 'boolean',
-        })
-        .option('ignore-errors', {
-            alias: 'i',
-            describe: 'Attempt to continue when an error is encountered',
-            type: 'boolean',
-        });
+  yargs
+    .positional('<path>', {
+      describe: 'Path to a TypeScript declaration file or directory',
+      type: 'path',
+    })
+    .normalize('path')
+    .option('sdkName', {
+      describe: 'Name of the API/Library/Module being documented',
+      type: 'string',
+    })
+    .option('outFile', {
+      describe: 'Save output to file (in outDir)',
+      type: 'path',
+    })
+    .normalize('outFile')
+    .option('outDir', {
+      alias: 'o',
+      describe: 'Save output to path',
+      type: 'path',
+    })
+    .normalize('outDir')
+    .option('config', {
+      describe: 'Load config file from path',
+      type: 'path',
+    })
+    .normalize('config')
+    .option('verbose', {
+      describe: 'Display additional information during processing',
+      type: 'boolean',
+    })
+    .option('no-color', {
+      describe: 'Suppress color output in terminal',
+      type: 'boolean',
+    })
+    .option('ignore-errors', {
+      alias: 'i',
+      describe: 'Attempt to continue when an error is encountered',
+      type: 'boolean',
+    });
 }
 
 require('yargs')
-    .usage('Usage: $0 file(s) [options]')
-    .example(
-        '$0 ./src/index.d.ts -o ./build/index.html',
-        'Generate a HTML documentation page from a TypeScript declaration file'
-    )
-    .command(
-        ['* <paths..>', 'build <paths..>'],
-        'Build documentation',
-        buildOptions,
-        build
-    )
-    .command(
-        'help',
-        'Show help',
-        () => {
-            return;
-        },
-        (yargs) => yargs.help()
-    )
+  .usage('Usage: $0 file(s) [options]')
+  .example(
+    '$0 ./src/index.d.ts -o ./build/index.html',
+    'Generate a HTML documentation page from a TypeScript declaration file'
+  )
+  .command(
+    ['* <paths..>', 'build <paths..>'],
+    'Build documentation',
+    buildOptions,
+    build
+  )
+  .command(
+    'help',
+    'Show help',
+    () => {
+      return;
+    },
+    (yargs) => yargs.help()
+  )
 
-    .help('h')
-    .alias('h', 'help')
-    .epilog('For more information, see https://github.com/ui-js/grok')
-    .strict(true)
-    .parse();
+  .help('h')
+  .alias('h', 'help')
+  .epilog('For more information, see https://github.com/ui-js/grok')
+  .strict(true)
+  .parse();

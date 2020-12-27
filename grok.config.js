@@ -1,5 +1,5 @@
 module.exports = {
-    // sdkName: 'module',
-    // verbose: false,
-    // documentTemplate: '{{sdkName}}{{packageName}}{{content}}',
+  // sdkName: 'module',
+  // verbose: false,
+  // documentTemplate: '{{sdkName}}{{packageName}}{{content}}',
 };
