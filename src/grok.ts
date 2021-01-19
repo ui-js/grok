@@ -1,5 +1,7 @@
 // import { Application, TSConfigReader, TypeDocReader } from 'typedoc';
 // import { ModuleKind, ScriptTarget } from 'typescript';
+const ts = require('typescript');
+
 const TypeDoc = require('typedoc');
 
 const highlightJs = require('highlight.js'); // https://highlightjs.org/
@@ -130,12 +132,12 @@ type Reflection = {
     | 'inferred'
     | 'intrinsic'
     | 'intersection'
+    | 'literal'
     | 'named-tuple-member'
     | 'predicate'
     | 'query'
     | 'reference'
     | 'reflection'
-    | 'stringLiteral'
     | 'tuple'
     | 'typeOperator'
     | 'typeParameter'
@@ -1226,6 +1228,103 @@ function getQualifiedName(node: Reflection): string {
   );
 }
 
+/**
+ * Return a URL pointint to documentation for the symbol 'link', if available.
+ */
+function externalLink(link: string): string {
+  if (
+    [
+      'Object',
+      'Function',
+      'Boolean',
+      'Symbol',
+      'String',
+      'RegExp',
+      'Object',
+      'Number',
+      'BigInt',
+      'Math',
+      'Date',
+      'Infinity',
+      'NaN',
+      'globalThis',
+      'Error',
+      'AggregateError',
+      'InternalError',
+      'RangeError',
+      'ReferenceError',
+      'SyntaxError',
+      'TypeError',
+      'URIError',
+      'Array',
+      'Int8Array',
+      'Uint8Array',
+      'Uint8Array',
+      'Uint8ClampedArray',
+      'Int16Array',
+      'Uint16Array',
+      'Int32Array',
+      'Uint32Array',
+      'Float32Array',
+      'Float64Array',
+      'BigInt64Array',
+      'BigUint64Array',
+      'Map',
+      'Set',
+      'WeakMap',
+      'WeakSet',
+      'ArrayBuffer',
+      'SharedArrayBuffer',
+      'Atomics',
+      'DataView',
+      'JSON',
+      'Promise',
+      'Generator',
+      'GeneratorFunction',
+      'AsyncFunction',
+      'Iterator',
+      'AsyncIterator',
+      'Reflect',
+      'Proxy',
+      'Intl',
+      'WebAssembly',
+    ].includes(link)
+  ) {
+    return (
+      'https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/' +
+      link
+    );
+  }
+  const typescriptUtilityType = {
+    Partial: 'partialtype',
+    Readonly: 'readonlytype',
+    Record: 'recordtype',
+    Pick: 'picktype',
+    Omit: 'omitype',
+    Exclude: 'excludetype',
+    Extract: 'extracttype',
+    NonNullable: 'nonnullabletype',
+    Parameters: 'parameterestype',
+    ConstructorParameters: 'constructorparameterstype',
+    ReturnType: 'returntype',
+    InstanceType: 'instancetype',
+    Required: 'requiredtype',
+    ThisParameterType: 'thisparametertype',
+    OmitThisParameter: 'omitthisparametertype',
+    ThisType: 'thistypetype',
+  }[link];
+  if (typescriptUtilityType) {
+    return (
+      'https://www.typescriptlang.org/docs/handbook/utility-types.html#' + link
+    );
+  }
+  // We could not resolve this reference.
+  // This can happen for globally defined types, for example
+  // 'KeyboardEvent'
+  // In that case, create a link to reference documentation
+  return 'https://developer.mozilla.org/docs/Web/API/' + link;
+}
+
 // See: https://github.com/microsoft/tsdoc/blob/master/spec/code-snippets/DeclarationReferences.ts
 // link is a string, representing a potentially non-resolved symbol, for
 // example "Foo", or a resolved one: "(Foo:variable)"
@@ -1238,11 +1337,10 @@ function resolveLink(node: Reflection, link: string): string {
     return link;
   }
   if (!getReflectionByLink(link, node)) {
-    // Check that the link actually resolves to a reflection
-    console.warn('Unresolved link in "' + node.name + '": ', link);
-    // Even if it doesn't, we can still generate a URL, but it
-    // likely won't point to anywhere.
+    // The link does not resolve to a reflection, use an external link
+    return externalLink(link);
   }
+
   let result = '';
   const imports = link.split('#');
   if (imports.length > 1) {
@@ -1705,7 +1803,7 @@ function renderClassSection(node: Reflection): string {
   if (node.extendedTypes) {
     body +=
       '<p>' +
-      span('Extends', 'class-label') +
+      span('Extends ', 'class-label') +
       node.extendedTypes
         .map((x) => render(x))
         .filter((x) => !!x)
@@ -1717,7 +1815,7 @@ function renderClassSection(node: Reflection): string {
     if (node.implementedTypes.length > 0) {
       body +=
         '<p>' +
-        span('Implements', 'class-label') +
+        span('Implements ', 'class-label') +
         node.implementedTypes
           .map((x) => render(x))
           .filter((x) => !!x)
@@ -1729,7 +1827,7 @@ function renderClassSection(node: Reflection): string {
   if (node.extendedBy) {
     body +=
       '<p>' +
-      span('Extended by', 'class-label') +
+      span('Extended by ', 'class-label') +
       node.extendedBy
         .map((x) => render(x))
         .filter((x) => !!x)
@@ -1743,7 +1841,7 @@ function renderClassSection(node: Reflection): string {
     if (implementedBy.length > 0) {
       body +=
         '<p>' +
-        span('Implemented by', 'class-label') +
+        span('Implemented by ', 'class-label') +
         implementedBy
           .map((x) => render(x))
           .filter((x) => !!x)
@@ -2210,7 +2308,11 @@ abstract class Animal {
     if (node.type === 'named-tuple-member') {
       //e.g. [start: number, end: number]
       return (
-        '<strong>' + node.name + '<strong>' + punct(': ') + render(node.element)
+        '<strong>' +
+        node.name +
+        '</strong>' +
+        punct(': ') +
+        render(node.element)
       );
     }
 
@@ -2267,127 +2369,26 @@ abstract class Animal {
         return node.name + typeArguments; // Don't render, it's a reference, we just need its name
       }
 
-      if (
-        [
-          'Object',
-          'Function',
-          'Boolean',
-          'Symbol',
-          'String',
-          'RegExp',
-          'Object',
-          'Number',
-          'BigInt',
-          'Math',
-          'Date',
-          'Infinity',
-          'NaN',
-          'globalThis',
-          'Error',
-          'AggregateError',
-          'InternalError',
-          'RangeError',
-          'ReferenceError',
-          'SyntaxError',
-          'TypeError',
-          'URIError',
-          'Array',
-          'Int8Array',
-          'Uint8Array',
-          'Uint8Array',
-          'Uint8ClampedArray',
-          'Int16Array',
-          'Uint16Array',
-          'Int32Array',
-          'Uint32Array',
-          'Float32Array',
-          'Float64Array',
-          'BigInt64Array',
-          'BigUint64Array',
-          'Map',
-          'Set',
-          'WeakMap',
-          'WeakSet',
-          'ArrayBuffer',
-          'SharedArrayBuffer',
-          'Atomics',
-          'DataView',
-          'JSON',
-          'Promise',
-          'Generator',
-          'GeneratorFunction',
-          'AsyncFunction',
-          'Iterator',
-          'AsyncIterator',
-          'Reflect',
-          'Proxy',
-          'Intl',
-          'WebAssembly',
-        ].includes(node.name)
-      ) {
-        return (
-          '<a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/' +
-          node.name +
-          '" class="externallink">' +
-          node.name +
-          '<svg><use xlink:href="#external-link"></use></svg>' +
-          '</a>' +
-          typeArguments
-        );
-      }
-
-      // Typescript utility types
-      const typescriptUtilityType = {
-        Partial: 'partialtype',
-        Readonly: 'readonlytype',
-        Record: 'recordtype',
-        Pick: 'picktype',
-        Omit: 'omitype',
-        Exclude: 'excludetype',
-        Extract: 'extracttype',
-        NonNullable: 'nonnullabletype',
-        Parameters: 'parameterestype',
-        ConstructorParameters: 'constructorparameterstype',
-        ReturnType: 'returntype',
-        InstanceType: 'instancetype',
-        Required: 'requiredtype',
-        ThisParameterType: 'thisparametertype',
-        OmitThisParameter: 'omitthisparametertype',
-        ThisType: 'thistypetype',
-      }[node.name];
-      if (typescriptUtilityType) {
-        return (
-          '<a href="https://www.typescriptlang.org/docs/handbook/utility-types.html#' +
-          typescriptUtilityType +
-          '" class="externallink">' +
-          node.name +
-          '<svg><use xlink:href="#external-link"></use></svg>' +
-          '</a>' +
-          typeArguments
-        );
-      }
-
-      // We could not resolve this reference.
-      // This can happen for globally defined types, for example
-      // 'KeyboardEvent'
-      // In that case, create a link to reference documentation
       return (
-        '<a href="https://developer.mozilla.org/Web/API/' +
-        node.name +
-        '" class="externallink">' +
-        node.name +
+        `<a href="${externalLink(node.name)}" class="externallink">${
+          node.name
+        }` +
         '<svg><use xlink:href="#external-link"></use></svg>' +
         '</a>' +
         typeArguments
       );
     }
 
+    if (node.type === 'literal') {
+      return span('"' + node.value + '"', 'string-literal');
+    }
+
     if (node.type === 'reflection') {
       return render(node.declaration, style);
     }
 
-    if (node.type === 'stringLiteral') {
-      return span('"' + node.value + '"', 'string-literal');
+    if (node.type === 'rest') {
+      return '...' + render(node.elementType, style);
     }
 
     if (node.type === 'tuple') {
@@ -2761,8 +2762,10 @@ function getReflectionsFromFile(src: string[], options: Options): Reflection {
   app.options.addReader(new TypeDoc.TypeDocReader());
 
   app.bootstrap({
-    logger: (message, _level, _newline) => console.log(message),
-    mode: 'modules', // or 'file', 'modules' or 'library'
+    logger: (message, _level, _newline) => {
+      console.log(message);
+    },
+    // mode: 'modules', // or 'file', 'modules' or 'library'
 
     // target: 'es2019', // 99, // ScriptTarget.ESNext,
     // module: 'ESNext', // 99, // TypeDoc.ModuleKind.ESNext,
@@ -2771,14 +2774,16 @@ function getReflectionsFromFile(src: string[], options: Options): Reflection {
     // To properly resolve 'import' statements
     // moduleResolution: 'node', // 2,
 
-    noEmit: 'true', // true,
+    // noEmit: 'true', // true,
 
     // We want to preserve the internals in the AST
     // and we'll strip/hide them separately
-    stripInternal: false,
+    excludeInternal: false,
 
     // To process .d.ts files
-    includeDeclarations: true,
+    // includeDeclarations: true,
+
+    excludePrivate: true,
 
     // To exclude references from external files
     excludeExternals: true,
@@ -2799,18 +2804,38 @@ function getReflectionsFromFile(src: string[], options: Options): Reflection {
     })
   );
 
-  const convertResult = app.converter.convert(src);
-  if (convertResult.errors?.length) {
-    app.logger.diagnostics(convertResult.errors);
-    if (options.ignoreErrors) {
-      app.logger.resetErrors();
-    } else {
-      return undefined;
-    }
-  }
+  const programs = [
+    ts.createProgram(
+      src,
+      app.application.options.getCompilerOptions()
+      // {
+      //   noEmitOnError: true,
+      //   noImplicitAny: false,
+      //   target: ts.ScriptTarget.ESNext,
+      //   excludeInternal: false,
+      //   excludePrivate: true,
+      //   // module: ts.ModuleKind.CommonJS,
+      // }),
+    ),
+    // ts.createProgram({
+    //   rootNames: src, // app.application.options.getFileNames(),
+    //   options: app.application.options.getCompilerOptions(),
+    //   projectReferences: app.application.options.getProjectReferences(),
+    // }),
+  ];
 
-  if (convertResult.project) {
-    result = app.serializer.projectToObject(convertResult.project);
+  const project = app.converter.convert(src, programs);
+  // if (convertResult.errors?.length) {
+  //   app.logger.diagnostics(convertResult.errors);
+  //   if (options.ignoreErrors) {
+  //     app.logger.resetErrors();
+  //   } else {
+  //     return undefined;
+  //   }
+  // }
+
+  if (project) {
+    result = app.serializer.projectToObject(project);
   }
 
   return result as Reflection;

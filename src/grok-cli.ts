@@ -160,6 +160,10 @@ function build(argv): void {
         box-sizing: border-box;
     }
 
+    .card dt {
+      clear: both;
+    }
+
     .index ul,
     ul.index {
         column-width: 28ex; // Approx. maximum length of a symbol (in char)
