@@ -1,6 +1,6 @@
 {
   "name": "@ui-js/grok",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "A tool to build beautiful documentation from TypeScript declaration files",
   "publishConfig": {
     "access": "public"
