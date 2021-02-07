@@ -20,6 +20,9 @@
   },
 
   "extends": [
+    "plugin:import/errors",
+    "plugin:import/warnings",
+    "plugin:import/typescript",
     // Uses the recommended rules for Typescript
     "plugin:@typescript-eslint/recommended",
     "prettier/@typescript-eslint", // Uses eslint-config-prettier to disable ESLint rules from @typescript-eslint/eslint-plugin that would conflict with prettier
@@ -30,6 +33,26 @@
   // See http://eslint.org/docs/rules/
 
   "rules": {
+    "import/no-unresolved": "error",
+    "import/named": "error",
+    "import/no-absolute-path": "error",
+    "import/no-cycle": "error",
+    "import/no-useless-path-segments": "error",
+    "import/no-relative-parent-imports": "error",
+
+    "import/no-extraneous-dependencies": [
+      "error",
+      {
+        "devDependencies": false,
+        "optionalDependencies": false
+      }
+    ],
+    "import/no-unused-modules": "error",
+
+    "import/no-duplicates": "error",
+    "import/no-namespace": "error",
+    "import/order": "off",
+
     "@typescript-eslint/no-var-requires": "off",
 
     "no-restricted-globals": [

@@ -1,3 +1,11 @@
+import { grok } from './grok';
+import { terminal } from './terminal';
+const path = require('path');
+const fs = require('fs-extra');
+
+const { cosmiconfigSync } = require('cosmiconfig');
+const configParser = cosmiconfigSync('grok');
+
 const pkg = require('../package.json');
 // require('please-upgrade-node')(pkg);
 
@@ -5,14 +13,6 @@ const updateNotifier = require('update-notifier');
 // Display an update message
 // if a more recent version of the package is available.
 updateNotifier({ pkg, shouldNotifyInNpmScript: true }).notify();
-
-const { cosmiconfigSync } = require('cosmiconfig');
-const configParser = cosmiconfigSync('grok');
-const path = require('path');
-const fs = require('fs-extra');
-
-import { grok } from './grok';
-import { terminal } from './terminal';
 
 /**
  * Merge "source" into object by doing a deep copy of enumerable properties.

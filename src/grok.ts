@@ -1,11 +1,11 @@
 // import { Application, TSConfigReader, TypeDocReader } from 'typedoc';
 // import { ModuleKind, ScriptTarget } from 'typescript';
+const path = require('path');
 const ts = require('typescript');
 
 const TypeDoc = require('typedoc');
 
 const highlightJs = require('highlight.js'); // https://highlightjs.org/
-const path = require('path');
 const fs = require('fs-extra');
 
 const MarkdownIt = require('markdown-it');
