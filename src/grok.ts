@@ -182,7 +182,7 @@ type Reflection = {
   value?: string; // For type === 'stringLiteral'
   elements?: Reflection[]; // For type === 'tuple'
   defaultValue?: string; // For kind === 16 (Enum Member)
-  indexSignature?: Reflection[];
+  indexSignature?: Reflection;
   parameters?: Reflection[];
   typeParameter?: Reflection[];
   extendedTypes?: Reflection[]; // For kind = : Class
@@ -2661,9 +2661,10 @@ abstract class Animal {
           }
           if (node.indexSignature) {
             result += '<dt>';
-            result += node.indexSignature
-              .map((x) => render(x))
-              .join(punct(';') + '</dt><dd>');
+            // result += node.indexSignature
+            //   .map((x) => render(x))
+            //   .join(punct(';') + '</dt><dd>');
+            result += render(node.indexSignature);
             result += '</dd>';
           }
           result += '</dl>' + '</div>';
@@ -2673,9 +2674,10 @@ abstract class Animal {
             result += node.children.map((x) => render(x)).join(punct('; '));
           }
           if (node.indexSignature) {
-            result += node.indexSignature
-              .map((x) => render(x))
-              .join(punct('; '));
+            render(node.indexSignature);
+            // result += node.indexSignature
+            //   .map((x) => render(x))
+            //   .join(punct('; '));
           }
           result += punct('}');
         } else {

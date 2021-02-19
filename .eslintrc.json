@@ -277,7 +277,7 @@
     "new-cap": "warn",
     "no-bitwise": "off",
     "no-console": "off",
-    "no-dupe-class-members": "off", // Support TypeScritp polymorphism
+    "no-dupe-class-members": "off", // Support TypeScript polymorphism
     "no-else-return": "warn",
     "no-eval": "error",
     "no-fallthrough": "error",
