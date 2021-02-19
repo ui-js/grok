@@ -344,6 +344,10 @@ function buildOptions(yargs): void {
       type: 'path',
     })
     .normalize('path')
+    .option('modules', {
+      describe: 'List of modules to document (space separated)',
+      type: 'array',
+    })
     .option('sdkName', {
       describe: 'Name of the API/Library/Module being documented',
       type: 'string',
