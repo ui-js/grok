@@ -16,7 +16,7 @@ const markdown = new MarkdownIt({
   highlight: function (str: string, lang: string): string {
     if ((lang ?? 'typescript') && highlightJs.getLanguage(lang)) {
       try {
-        const result = highlightJs.highlight(lang, str);
+        const result = highlightJs.highlight(str, { language: lang });
         if (result.illegal) {
           console.group();
           console.error('Syntax error in sample code\n');
@@ -988,7 +988,7 @@ function renderTag(node: Reflection, tag: string, text: string) {
     case 'example':
       result +=
         '\n<pre><code>' +
-        highlightJs.highlight('typescript', text).value +
+        highlightJs.highlight(text, { language: 'typescript' }).value +
         '</code></pre>\n';
       break;
     case 'typedef':
