@@ -7,15 +7,24 @@ set -o pipefail  # don't hide errors within pipes
 
 cd "$(dirname "$0")/.."
 
+export BASENAME="\033[40m"Grok"\033[0m" # `basename "$0"`
+export DOT="\033[32m ● \033[0m"
+export CHECK="\033[32m ✔ \033[0m"
+export LINECLEAR="\033[1G\033[2K" # position to column 1; erase whole line
+export ERROR="\033[31m ERROR \033[0m"
+
+
 # If no "node_modules" directory, do an install first
 if [ ! -d "./node_modules" ]; then
-    printf "\033[32m\033[1K ● \033[0Installing dependencies"
+    printf "$BASENAME$DOT Installing dependencies"
     npm install
-    echo -e "\033[32m\033[1K ✔ \033[0Dependencies installed"
+    echo -e "$LINECLEAR$BASENAME$CHECK Dependencies installed"
 fi
 
 # Read the first argument, set it to "dev" if not set
 export BUILD="${1-dev}"
 
+echo -e "$BASENAME$DOT Making a build"
 rm -rf ./bin
 npx rollup --config ./config/rollup.config.js
+echo -e "$LINECLEAR$BASENAME$CHECK Completed build"

@@ -2934,7 +2934,7 @@ export function grok(
 
       gNodes.children.forEach((module) => {
         if (!className) {
-          module.children.forEach((topLevelNode) => {
+          module.children?.forEach((topLevelNode) => {
             if (topLevelNode.kind === 128) {
               // We've found a class
               className = topLevelNode.name;
