@@ -45,6 +45,11 @@ The configuration can include the following keys:
   `tutorialPath = 'https://example.com/docs'` will redirect to
   'https://example.com/docs/readme.html'
 
+- `externalReferences`: Set of symbols that have an external reference other
+  than the standard one (MDN).
+
+  Can be used for global symbols, or symbols referenced cross-module.
+
 - `modules` An array of module names that will be documented. This is useful
   both to indicate the order in which the modules should be displayed in the
   documentation and to 'hide' any unnecessary modules, while still preserving
