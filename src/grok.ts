@@ -34,7 +34,7 @@ const markdown = new MarkdownIt({
   },
 });
 
-interface Options {
+export interface Options {
   exclude?: string[]; // glob patterns of files to exclude, e.g. '**/*.test.ts'
   outFile?: string;
 
@@ -42,7 +42,6 @@ interface Options {
    * attempt to continue nonetheless
    */
   ignoreErrors?: boolean;
-  // verbose?: boolean;
 
   documentTemplate?:
     | string
@@ -59,6 +58,14 @@ interface Options {
    * will redirect to 'https://example.com/docs/readme.html'
    */
   tutorialPath: string;
+
+  /**
+   * Set of symbols that have an external reference other than the
+   * standard one (MDN).
+   *
+   * Can be used for global symbols, or symbols referenced cross-module.
+   */
+  externalReferences: { [symbol: string]: string };
 
   modules?: string[];
 
@@ -204,6 +211,21 @@ type Permalink = {
   title: string;
   document?: string;
 };
+
+async function replaceAsync(
+  str: string,
+  regex: string | RegExp,
+  replacer: (substring: string, ...args: any[]) => Promise<string> | string
+) {
+  const promises = [];
+  str.replace(regex, (match: string, ...args: any[]): string => {
+    const promise = replacer(match, ...args);
+    promises.push(promise);
+    return '';
+  });
+  const data = await Promise.all(promises);
+  return str.replace(regex, () => data.shift());
+}
 
 function span(
   value: string,
@@ -562,7 +584,7 @@ function getCategories(node: Reflection, kind: ReflectionKind): Category[] {
   if (!children || children.length !== 1) {
     // No groups. Are there categories?
     if (node.categories) {
-      return sortOtherCategoryAtEnd((node.categories as unknown) as Category[]);
+      return sortOtherCategoryAtEnd(node.categories as unknown as Category[]);
     }
     return [
       {
@@ -590,7 +612,7 @@ function getCategories(node: Reflection, kind: ReflectionKind): Category[] {
         title: '',
         children: getChildrenByID(
           node,
-          (children[0].children as unknown) as number[]
+          children[0].children as unknown as number[]
         ),
       },
     ];
@@ -1229,9 +1251,14 @@ function getQualifiedName(node: Reflection): string {
 }
 
 /**
- * Return a URL pointint to documentation for the symbol 'link', if available.
+ * Return a URL pointing to documentation for the symbol 'link', if available.
  */
-function externalLink(link: string): string {
+async function externalLink(link: string): Promise<string> {
+  // If there is a custom external reference for this link/symbol,
+  // use it now.
+  if (gOptions.externalReferences[link]) {
+    return gOptions.externalReferences[link];
+  }
   if (
     [
       'Object',
@@ -1321,8 +1348,11 @@ function externalLink(link: string): string {
   // We could not resolve this reference.
   // This can happen for globally defined types, for example
   // 'KeyboardEvent'
-  // In that case, create a link to reference documentation
-  return 'https://developer.mozilla.org/docs/Web/API/' + link;
+  // In that case, create a link to reference documentation.
+  const url = 'https://developer.mozilla.org/docs/Web/API/' + link;
+  const response = await fetch(url);
+  if (response.status === 404) return '';
+  return url;
 }
 
 // See: https://github.com/microsoft/tsdoc/blob/master/spec/code-snippets/DeclarationReferences.ts
@@ -1331,7 +1361,7 @@ function externalLink(link: string): string {
 // or "(Foo:class).(Bar.function)" or "https://host.com/path/#Foo"
 // or "@module/path/director#Foo"
 
-function resolveLink(node: Reflection, link: string): string {
+async function resolveLink(node: Reflection, link: string): Promise<string> {
   if (/^http[s]?:\/\//.test(link)) {
     // It's a regular URL
     return link;
@@ -1380,6 +1410,14 @@ function filterInherited(list: Reflection[]): Reflection[] {
   return list.filter((x) => !x.inheritedFrom);
 }
 
+async function wrapHref(
+  url: string | Promise<string>,
+  content: string
+): Promise<string> {
+  if (await url) return `<a href="${url}">${content}</a>`;
+  return content;
+}
+
 /**
  * Render the JSDOC links that may be included in comments.
  *
@@ -1388,60 +1426,61 @@ function filterInherited(list: Reflection[]): Reflection[] {
  *
  */
 
-function renderLinkTags(node: Reflection, str: string) {
-  str = str.replace(
+async function renderLinkTags(node: Reflection, str: string) {
+  str = await replaceAsync(
+    str,
     /{@tutorial\s+(\S+?)[ \|]+(.+?)}/g,
-    (_match, p1, p2) => `<a href="${getTutorial(p1)}">${p2}</a>`
+    (_match, p1, p2) => wrapHref(getTutorial(p1), p2)
   );
-  str = str.replace(
-    /{@tutorial\s+(\S+?)}/g,
-    (_match, p1) => `<a href="${getTutorial(p1)}">${p1}</a>`
+  str = await replaceAsync(str, /{@tutorial\s+(\S+?)}/g, (_match, p1) =>
+    wrapHref(getTutorial(p1), p1)
   );
 
   // @linkcode with title
-  str = str.replace(
+  str = await replaceAsync(
+    str,
     /{@linkcode\s+(\S+?)\s*\|\s*(.+?)}/g,
-    (_match, p1, p2) =>
-      `<a href="${resolveLink(node, p1)}"><code>${p2}</code></a>`
+    (_match, p1, p2) => wrapHref(resolveLink(node, p1), `<code>${p2}</code>`)
   );
   // @linkcode no title
-  str = str.replace(
-    /{@linkcode\s+(\S+?)}/g,
-    (_match, p1) => `<a href="${resolveLink(node, p1)}"><code>${p1}</code></a>`
+  str = await replaceAsync(str, /{@linkcode\s+(\S+?)}/g, (_match, p1) =>
+    wrapHref(resolveLink(node, p1), `<code>${p1}</code>`)
   );
   // [[`` | ]]
-  str = str.replace(
+  str = await replaceAsync(
+    str,
     /\[\[\`(\S+?)\`\s*\|\s*(.+?)\]\]/g,
-    (_match, p1) => `<a href="${resolveLink(node, p1)}"><code>${p1}</code></a>`
+    (_match, p1, p2) => wrapHref(resolveLink(node, p2), `<code>${p1}</code>`)
   );
   // [[``]]
-  str = str.replace(
-    /\[\[\`(\S+?)\`\]\]/g,
-    (_match, p1) => `<a href="${resolveLink(node, p1)}"><code>${p1}</code></a>`
+  str = await replaceAsync(str, /\[\[\`(\S+?)\`\]\]/g, (_match, p1) =>
+    wrapHref(resolveLink(node, p1), `<code>${p1}</code>`)
   );
 
   // @link and @linkplain with title
-  str = str.replace(
+  str = await replaceAsync(
+    str,
     /{@(?:link|linkplain)\s+(\S+?)\s*\|\s*(.+?)}/g,
-    (_match, p1, p2) => `<a href="${resolveLink(node, p1)}">${p2}</a>`
+    (_match, p1, p2) => wrapHref(resolveLink(node, p1), p2)
   );
 
   // @link and @linkplain no title
-  str = str.replace(
+  str = await replaceAsync(
+    str,
     /{@(?:link|linkplain)\s+(\S+?)}/g,
-    (_match, p1) => `<a href="${resolveLink(node, p1)}">${p1}</a>`
+    (_match, p1) => wrapHref(resolveLink(node, p1), p1)
   );
 
   // [[ | ]] with title
-  str = str.replace(
+  str = await replaceAsync(
+    str,
     /\[\[(\S+?)\s*\|\s*(.+?)\]\]/g,
-    (_match, p1, p2) => `<a href="${resolveLink(node, p1)}">${p2}</a>`
+    (_match, p1, p2) => wrapHref(resolveLink(node, p1), p2)
   );
 
   // [[]]
-  str = str.replace(
-    /\[\[(\S+?)\]\]/g,
-    (_match, p1) => `<a href="${resolveLink(node, p1)}">${p1}</a>`
+  str = await replaceAsync(str, /\[\[(\S+?)\]\]/g, (_match, p1) =>
+    wrapHref(resolveLink(node, p1), p1)
   );
 
   // {@inheritDoc ...}
@@ -2369,6 +2408,9 @@ abstract class Animal {
         return node.name + typeArguments; // Don't render, it's a reference, we just need its name
       }
 
+      const url = externalLink(node.name);
+      if (!url) return node.name + typeArguments;
+
       return (
         `<a href="${externalLink(node.name)}" class="externallink">${
           node.name
@@ -2933,13 +2975,13 @@ export function grok(
       moduleName = options.modules[0] ?? '';
 
       gNodes.children.forEach((module) => {
-        if (!className) {
-          module.children?.forEach((topLevelNode) => {
+        if (!className && module.children) {
+          for (const topLevelNode of module.children) {
             if (topLevelNode.kind === 128) {
               // We've found a class
               className = topLevelNode.name;
             }
-          });
+          }
         }
       });
     }
