@@ -13,7 +13,7 @@
       "outFiles": ["${workspaceFolder}/**/*.js"],
       "preLaunchTask": "npm: build",
       "args": [
-        "../math-json/src/public.ts",
+        "../compute-engine/src/compute-engine.ts",
         // "../mathlive/dist/public",
         // "test/class-test.d.ts",
         "--outDir",

@@ -16,7 +16,7 @@
     // "strictNullChecks": true,
     "target": "es2020",
 
-    "lib": ["es2017", "dom", "dom.iterable", "scripthost"]
+    "lib": ["es2020", "dom", "dom.iterable", "scripthost"]
   },
   "exclude": ["node_modules", "**/*.spec.ts", "bin", "config"]
 }
