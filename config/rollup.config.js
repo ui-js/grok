@@ -1,7 +1,6 @@
 import resolve from '@rollup/plugin-node-resolve';
 import { terser } from 'rollup-plugin-terser';
 import typescript from 'rollup-plugin-typescript2';
-import { eslint } from 'rollup-plugin-eslint';
 import pkg from '.././package.json';
 
 process.env.BUILD = process.env.BUILD || 'development';
@@ -44,7 +43,6 @@ export default [
       resolve({
         preferBuiltins: true,
       }),
-      PRODUCTION && eslint(),
       typescript(TYPESCRIPT_OPTIONS),
       PRODUCTION && terser(TERSER_OPTIONS),
       // copy({
@@ -68,7 +66,6 @@ export default [
       resolve({
         preferBuiltins: true,
       }),
-      PRODUCTION && eslint(),
       typescript(TYPESCRIPT_OPTIONS),
       PRODUCTION && terser(TERSER_OPTIONS),
     ],
