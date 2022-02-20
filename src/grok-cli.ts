@@ -391,7 +391,7 @@ require('yargs')
   )
   .command(
     ['* <paths..>', 'build <paths..>'],
-    'Build documentation',
+    'grok build documentation',
     buildOptions,
     build
   )
