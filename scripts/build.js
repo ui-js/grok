@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+// https://esbuild.github.io/api/
+
 // eslint-disable-next-line import/no-extraneous-dependencies
 const { build } = require('esbuild');
 build({
@@ -8,5 +10,7 @@ build({
   bundle: true,
   platform: 'node',
   external: ['./node_modules/*'],
+  banner: { js: '#!/usr/bin/env node' },
+  minify: true,
   // logLevel: 'debug',
 });
