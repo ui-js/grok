@@ -11,13 +11,12 @@
     "tool"
   ],
   "license": "MIT",
-  "main": "bin/grok.js",
-  "module": "bin/grok.js",
+  "main": "bin/grok-cli.js",
   "bin": {
-    "grok": "bin/grok-cli.js"
+    "grok": "./bin/grok-cli.js"
   },
   "files": [
-    "bin/grok-cli.js"
+    "bin"
   ],
   "devDependencies": {
     "@cortex-js/prettier-config": "^1.1.0",
@@ -51,6 +50,9 @@
     "yaml": "^1.10.2",
     "yargs": "^17.3.1"
   },
+  "engines": {
+    "node": ">=16.0.0"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/ui-js/grok.git"
@@ -59,14 +61,11 @@
     "build": "bash ./scripts/build.sh",
     "clean": "bash ./scripts/clean.sh",
     "coverage": "bash ./scripts/test.sh coverage",
-    "deploy": "",
     "dist": "bash ./scripts/build.sh production",
-    "grok": "node ./bin/grok",
+    "grok": "node ./bin/grok-cli.js",
     "lint": "eslint --ignore-path ./.prettierignore --fix \"src/*.{ts,js}\"",
     "prettier": "prettier --ignore-path ./.prettierignore --write \"**/*.{ts,js,css,md,yml,json}\" \"!vendor/**\"",
-    "snapshot": "bash ./scripts/test.sh snapshot",
-    "test": "bash ./scripts/test.sh",
-    "watch": "rollup --config ./config/rollup.config.js --watch"
+    "test": "bash ./scripts/test.sh"
   },
   "prettier": "@cortex-js/prettier-config",
   "lint-staged": {
