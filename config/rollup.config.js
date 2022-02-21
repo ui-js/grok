@@ -34,17 +34,15 @@ export default [
   {
     input: 'src/grok-cli.ts',
     output: {
-      file: 'bin/grok-cli',
+      file: 'bin/grok-cli.js',
       format: 'cjs',
       banner: '#!/usr/bin/env node',
       sourcemap: !PRODUCTION,
     },
     plugins: [
-      resolve({
-        preferBuiltins: true,
-      }),
+      resolve({ preferBuiltins: true }),
       typescript(TYPESCRIPT_OPTIONS),
-      PRODUCTION && terser(TERSER_OPTIONS),
+      // PRODUCTION && terser(TERSER_OPTIONS),
       // copy({
       //     targets: [{ src: 'package.json', dest: 'bin' }],
       // }),
@@ -63,9 +61,24 @@ export default [
       sourcemap: !PRODUCTION,
     },
     plugins: [
-      resolve({
-        preferBuiltins: true,
-      }),
+      resolve({ preferBuiltins: true }),
+      typescript(TYPESCRIPT_OPTIONS),
+      PRODUCTION && terser(TERSER_OPTIONS),
+    ],
+    watch: {
+      clearScreen: false,
+      exclude: ['node_modules/**'],
+    },
+  },
+  {
+    input: 'src/grok.ts',
+    output: {
+      file: 'bin/grok.esm.js',
+      format: 'esm',
+      sourcemap: !PRODUCTION,
+    },
+    plugins: [
+      resolve({ preferBuiltins: true }),
       typescript(TYPESCRIPT_OPTIONS),
       PRODUCTION && terser(TERSER_OPTIONS),
     ],

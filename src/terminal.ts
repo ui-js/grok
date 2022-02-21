@@ -1,5 +1,9 @@
+// import chalk from 'chalk';
+// import { isCI } from 'ci-info';
+
 const chalk = require('chalk');
 const ciInfo = require('ci-info');
+const isCI = ciInfo.isCI;
 
 //
 // Terminal colors for various kind of messages
@@ -13,7 +17,7 @@ const tcPurple = '#d1d7ff';
  * (e.g. if we're redirecting errors to a log file) or when in a CI environment.
  * Note that the debug console in VSCode returns 'undefined' for isTTY.
  */
-let gUseColor = (process.stdout.isTTY ?? false) && !ciInfo.isCI;
+let gUseColor = (process.stdout.isTTY ?? false) && !isCI;
 
 export const terminal = {
   useColor: (flag: boolean): void => {

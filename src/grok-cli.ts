@@ -1,7 +1,11 @@
 import { grok, Options } from './grok';
 import { terminal } from './terminal';
+// import path from 'path';
 const path = require('path');
+
 const fs = require('fs-extra');
+const ensureDirSync = fs.ensureDirSync;
+const writeFileSync = fs.writeFileSync;
 
 const { cosmiconfigSync } = require('cosmiconfig');
 const configParser = cosmiconfigSync('grok');
@@ -38,9 +42,9 @@ function outputResult(
   outDir: string,
   result: { [file: string]: string }
 ): void {
-  fs.mkdir(outDir, { recursive: true });
+  ensureDirSync(outDir);
   Object.keys(result).forEach((x) => {
-    fs.writeFileSync(
+    writeFileSync(
       path.resolve(path.normalize(path.join(outDir, x))),
       result[x]
     );

@@ -1,11 +1,11 @@
 {
   "env": {
     "browser": false,
-    // "commonjs": true,
+    "commonjs": true,
     "es6": true,
     "node": true, // For jest, config files, etc...
-    "amd": true,
-    "mocha": true
+    "amd": false,
+    "mocha": false
   },
 
   "parser": "@typescript-eslint/parser",
@@ -78,7 +78,7 @@
       "toolbar",
       "status",
       "frameElement",
-      // "navigator",
+      "navigator",
       "customElements",
       "external",
       "screen",

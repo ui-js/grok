@@ -8,5 +8,6 @@ set -o pipefail  # don't hide errors within pipes
 cd "$(dirname "$0")/.."
 
 rm -rf "./bin"
+rm -rf "./test/output"
 rm -rf "./build"
 rm -rf "./coverage"

@@ -17,6 +17,7 @@
     "target": "es2020",
 
     "lib": ["es2020", "dom", "dom.iterable", "scripthost"]
+    // "lib": ["es2020", "scripthost"]
   },
   "exclude": ["node_modules", "**/*.spec.ts", "bin", "config"]
 }

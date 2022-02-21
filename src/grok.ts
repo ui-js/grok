@@ -1,12 +1,24 @@
 // import { Application, TSConfigReader, TypeDocReader } from 'typedoc';
 // import { ModuleKind, ScriptTarget } from 'typescript';
+// import path from 'path';
 const path = require('path');
-const ts = require('typescript');
 
-const TypeDoc = require('typedoc');
+// import { Application, TSConfigReader, TypeDocReader } from 'typedoc';
+const td = require('typedoc');
+const Application = td.Application;
+const TSConfigReader = td.TSConfigReader;
+const TypeDocReader = td.TypeDocReader;
 
-const highlightJs = require('highlight.js'); // https://highlightjs.org/
+const hljs = require('highlight.js/lib/core'); // https://highlightjs.org/
+const javascriptHljs = require('highlight.js/lib/languages/javascript');
+hljs.registerLanguage('javascript', javascriptHljs);
+const typescriptHlhs = require('highlight.js/lib/languages/typescript');
+hljs.registerLanguage('typescript', typescriptHlhs);
+
+// import { pathExistsSync, lstatSync } from 'fs-extra';
 const fs = require('fs-extra');
+const pathExistsSync = fs.pathExistsSync;
+const lstatSync = fs.lstatSync;
 
 const MarkdownIt = require('markdown-it');
 const markdown = new MarkdownIt({
@@ -14,14 +26,13 @@ const markdown = new MarkdownIt({
   html: true,
   typographer: true,
   highlight: function (str: string, lang: string): string {
-    if ((lang ?? 'typescript') && highlightJs.getLanguage(lang)) {
+    if ((lang ?? 'typescript') && hljs.getLanguage(lang)) {
       try {
-        const result = highlightJs.highlight(str, { language: lang });
+        const result = hljs.highlight(str, { language: lang });
         if (result.illegal) {
           console.group();
           console.error('Syntax error in sample code\n');
-          console.error(result.illegalBy.msg.replace('\n', '\\n'));
-          console.error('\n' + result.illegalBy.context);
+          console.error(result.value.replace('\n', '\\n'));
           console.groupEnd();
         }
         return result.value;
@@ -877,8 +888,9 @@ function getKeywords(node: Reflection): string[] {
     {
       2: 'namespace',
       4: 'enum',
-      32: 'variable',
+      8: '', // name of enum...
       16: '', // Enum member
+      32: 'variable',
       64: 'function',
       128: 'class',
       256: 'interface',
@@ -995,7 +1007,7 @@ function renderTag(node: Reflection, tag: string, text: string) {
     case 'example':
       result +=
         '\n<pre><code>' +
-        highlightJs.highlight(text, { language: 'typescript' }).value +
+        hljs.highlight(text, { language: 'typescript' }).value +
         '</code></pre>\n';
       break;
     case 'typedef':
@@ -1150,8 +1162,9 @@ function getQualifiedSymbol(parent: Reflection, node: Reflection): string {
   let selector = {
     2: 'namespace',
     4: 'enum',
-    32: 'variable',
+    8: '', // name of enum...
     16: '', // Enum member
+    32: 'variable',
     64: 'function',
     128: 'class',
     256: 'interface',
@@ -2502,7 +2515,21 @@ abstract class Animal {
       if (style === 'card' || style === 'section') {
         result = renderMethodCard(node);
       } else {
-        console.warn('Unexpected style, kind ', node.kind);
+        result = renderComment(node, 'block');
+        if (node.signatures) {
+          result += node.signatures
+            .map((signature) => {
+              let result = renderFlags(signature);
+              // Display the "short" signature (kind 4096)
+              result += div(render(signature, 'inline'), 'code');
+
+              // Display info about each of the params...
+              result += render(signature, 'block');
+
+              return div(result);
+            })
+            .join('\n<hr>\n');
+        }
       }
       break;
 
@@ -2765,34 +2792,22 @@ abstract class Animal {
 
 function getReflectionsFromFile(src: string[], options: Options): Reflection {
   let result = {};
-  const app = new TypeDoc.Application();
+  const app = new Application();
 
   // If you want TypeDoc to load tsconfig.json / typedoc.json files
-  app.options.addReader(new TypeDoc.TSConfigReader());
-  app.options.addReader(new TypeDoc.TypeDocReader());
+  app.options.addReader(new TSConfigReader());
+  app.options.addReader(new TypeDocReader());
 
   app.bootstrap({
     logger: (message: string, level: number, _newline) => {
       if (level > 0) console.log(message);
     },
-    // mode: 'modules', // or 'file', 'modules' or 'library'
 
-    // target: 'es2019', // 99, // ScriptTarget.ESNext,
-    // module: 'ESNext', // 99, // TypeDoc.ModuleKind.ESNext,
-    // experimentalDecorators: true,
-
-    // To properly resolve 'import' statements
-    // moduleResolution: 'node', // 2,
-
-    // noEmit: 'true', // true,
-
-    // We want to preserve the internals in the AST
-    // and we'll strip/hide them separately
-    excludeInternal: false,
-
-    // To process .d.ts files
-    // includeDeclarations: true,
-
+    entryPoints: src.map((x) => {
+      const f = path.resolve(path.normalize(x));
+      if (!pathExistsSync(f)) console.warn('File not found "' + f + '"');
+      return f;
+    }),
     excludePrivate: true,
 
     // To exclude references from external files
@@ -2804,37 +2819,7 @@ function getReflectionsFromFile(src: string[], options: Options): Reflection {
         : options.exclude ?? [],
   });
 
-  src = app.expandInputFiles(
-    src.map((x) => {
-      const f = path.resolve(path.normalize(x));
-      if (!fs.existsSync(f)) {
-        console.warn('File not found "' + f + '"');
-      }
-      return f;
-    })
-  );
-
-  const programs = [
-    ts.createProgram(
-      src,
-      app.application.options.getCompilerOptions()
-      // {
-      //   noEmitOnError: true,
-      //   noImplicitAny: false,
-      //   target: ts.ScriptTarget.ESNext,
-      //   excludeInternal: false,
-      //   excludePrivate: true,
-      //   // module: ts.ModuleKind.CommonJS,
-      // }),
-    ),
-    // ts.createProgram({
-    //   rootNames: src, // app.application.options.getFileNames(),
-    //   options: app.application.options.getCompilerOptions(),
-    //   projectReferences: app.application.options.getProjectReferences(),
-    // }),
-  ];
-
-  const project = app.converter.convert(src, programs);
+  const project = app.convert();
   // if (convertResult.errors?.length) {
   //   app.logger.diagnostics(convertResult.errors);
   //   if (options.ignoreErrors) {
@@ -2898,7 +2883,7 @@ export function grok(
     let directoryName = '';
 
     if (src.length === 1) {
-      if (fs.lstatSync(src[0]).isDirectory()) {
+      if (lstatSync(src[0]).isDirectory()) {
         directoryName = path.basename(src[0]);
       }
     }

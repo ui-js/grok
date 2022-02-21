@@ -26,7 +26,10 @@ fi
 # Read the first argument, set it to "dev" if not set
 export BUILD="${1-dev}"
 
-echo -e "${RESET}$BASENAME$DOT${RESET}Making a build"
+echo -e "${RESET}$BASENAME$DOT${RESET}Build started"
+
 rm -rf ./bin
-npx rollup --config ./config/rollup.config.js
-echo -e "$LINECLEAR${RESET}$BASENAME$CHECK${RESET}Completed build"
+
+node ./scripts/build.js
+
+echo -e "$LINECLEAR${RESET}$BASENAME$CHECK${RESET}Build completed"
