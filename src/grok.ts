@@ -46,6 +46,7 @@ const markdown = new MarkdownIt({
 });
 
 export interface Options {
+  inFile?: string; // path relative to project directory
   exclude?: string[]; // glob patterns of files to exclude, e.g. '**/*.test.ts'
   outFile?: string;
 
@@ -81,6 +82,8 @@ export interface Options {
   modules?: string[];
 
   sdkName?: string;
+
+  verbose?: boolean;
 }
 type Tag =
   | 'alpha'
@@ -197,7 +200,7 @@ type Reflection = {
   operator?: string; // For type 'typeOperator'
   target?: Reflection; // For type 'typeOperator'
   constraint?: Reflection;
-  value?: string; // For type === 'stringLiteral'
+  value?: any; // For type === 'literal' (could be string, number, null, undefined...)
   elements?: Reflection[]; // For type === 'tuple'
   defaultValue?: string; // For kind === 16 (Enum Member)
   indexSignature?: Reflection;
@@ -239,6 +242,7 @@ function span(
     | 'tag-name'
     | 'class-label'
     | 'string-literal'
+    | 'num-literal'
     | 'deprecated'
     | 'highlighting-mark-container'
     | ''
@@ -260,6 +264,36 @@ function punct(value: string): string {
 
 function keyword(k: string): string {
   return '<span class="keyword">' + k + '</span>';
+}
+
+function strong(s: string): string {
+  if (!s) return '';
+  return `<strong>${s}</strong>`;
+}
+
+function quotedString(s: string): string {
+  return `<span class="string-literal">"${s}"</span>`;
+}
+
+function literalToString(v: any): string {
+  if (v === null) return keyword('null');
+  if (v === undefined) return keyword('undefined');
+  if (Array.isArray(v)) {
+    return (
+      punct('[') +
+      v.map((x) => literalToString(x)).join(punct(', ')) +
+      punct(']')
+    );
+  }
+  if (typeof v === 'boolean') {
+    return v ? keyword('true') : keyword('false');
+  }
+  if (typeof v === 'number') {
+    return span(v.toString(), 'num-literal');
+  }
+  if (typeof v === 'string') return quotedString(v);
+  // @todo: could do object literal, symbols...
+  return v.toString();
 }
 
 function section(
@@ -326,7 +360,7 @@ function heading(
   permalink?: Permalink,
   options?: { deprecated?: boolean; className?: string }
 ) {
-  const tag = 'h' + Number(level).toString();
+  const tag = `h${level}`;
 
   let body = subhead ? span(subhead, 'subhead') : '';
 
@@ -350,6 +384,43 @@ function heading(
     tag +
     '>'
   );
+}
+
+function complexity(node: Reflection): number {
+  if (node === undefined) return 0;
+  if (typeof node === 'number') node = getReflectionByID(node);
+  if (typeof node === 'string') node = getReflectionByName(node);
+
+  // Function sig, ctor sig, accessor
+  if (node.kind === 4096 || node.kind === 16384 || node.kind === 524288) {
+    return 1 + node.parameters.reduce((acc, x) => acc + complexity(x), 0);
+  }
+
+  if (node.type === 'intrinsic') return 1;
+  if (node.type === 'literal') return 1;
+  if (node.type === 'reflection') return 1 + complexity(node.declaration);
+  if (node.type === 'rest') return 1 + complexity(node.elementType);
+  if (node.type === 'array') return 1 + complexity(node.elementType);
+  if (node.type === 'query') return 1 + complexity(node.queryType);
+  if (node.type === 'tuple') {
+    return 1 + node.elements.reduce((acc, x) => acc + complexity(x), 0);
+  }
+  if (node.type === 'named-tuple-member') return 1 + complexity(node.element);
+  if (node.type === 'typeOperator') return 1 + complexity(node.target);
+  if (node.type === 'typeParameter') {
+    if (node.constraint) return 2 + complexity(node.constraint);
+    return 1;
+  }
+  if (node.type === 'union') {
+    return 1 + node.types.reduce((acc, x) => acc + complexity(x), 0);
+  }
+  if (node.type === 'reference') {
+    if (node.typeArguments) {
+      return 1 + node.typeArguments.reduce((acc, x) => acc + complexity(x), 0);
+    }
+    return 1;
+  }
+  return 1;
 }
 
 // A "reflection" is some type information.
@@ -388,32 +459,29 @@ function getReflectionsByName(name: string, root?: Reflection): Reflection[] {
 
 /**
  * While a node ID is unique, names might not be.
- * Return all the matching nodes.
+ * Return the first matching node.
  */
 function getReflectionByName(
   name: string,
   root?: Reflection,
   kind?: number | string
 ): Reflection {
-  let candidates = [];
-  candidates = getReflectionsByName(name, root);
-  if (candidates.length > 0) {
-    candidates.sort((a, b) => b.kind - a.kind);
-    if (typeof kind === 'number') {
-      candidates = candidates.filter((x) => (x.kind & kind) !== 0);
-    } else if (kind === 'static') {
-      candidates = candidates.filter(
-        (x) => x.kind === 2048 && hasFlag(x, 'isStatic')
-      );
-    } else if (typeof kind === 'string') {
-      const numKind = NUMERIC_KIND[kind];
-      candidates = candidates.filter((x) => (x.kind & numKind) !== 0);
-    }
-    if (candidates.length > 0) {
-      return candidates[0];
-    }
+  let candidates = getReflectionsByName(name, root);
+  if (candidates.length === 0) return null;
+
+  candidates.sort((a, b) => b.kind - a.kind);
+  if (typeof kind === 'number') {
+    candidates = candidates.filter((x) => (x.kind & kind) !== 0);
+  } else if (kind === 'static') {
+    candidates = candidates.filter(
+      (x) => x.kind === 2048 && hasFlag(x, 'isStatic')
+    );
+  } else if (typeof kind === 'string') {
+    const numKind = NUMERIC_KIND[kind];
+    candidates = candidates.filter((x) => (x.kind & numKind) !== 0);
   }
-  return null;
+  if (candidates.length === 0) return null;
+  return candidates[0];
 }
 
 const NUMERIC_KIND = {
@@ -503,10 +571,7 @@ function getChildrenByID(node: Reflection, children: number[]): Reflection[] {
 }
 
 function getName(node: Reflection): string {
-  if (node.kind === 1) {
-    return getModuleName(node);
-  }
-  return node.name;
+  return node.kind === 1 ? getModuleName(node) : node.name;
 }
 
 function everyStringLiteral(nodes: Reflection[]): boolean {
@@ -524,22 +589,25 @@ function sortOtherCategoryAtEnd(categories: Category[]): Category[] {
 
 const GROUP_KIND_ORDER = {
   1: 0, // modules
+  2: 0, // namespace
+
   512: 1, // constructor
 
-  64: 2, // function
+  256: 2, // interface
+  128: 2, // class
 
   2048: 3, // method
   262144: 3, // setter/getter (accessor)
   524288: 3, // get signature
   1048576: 3, // set signature
+  1024: 3, // property
+  32: 3, // variable/properties
 
-  1024: 4, // property
-  32: 5, // variable/properties
-  256: 6, // interface
-  128: 7, // class
-  2: 8, // namespace
-  4194304: 9, // type alias
-  4: 10, // enum
+  4194304: 4, // type alias
+
+  4: 5, // enum
+
+  64: 6, // function
 
   16777216: 11, // Reference
 };
@@ -555,15 +623,6 @@ function sortGroups(groups: Reflection[]): Reflection[][] {
     }
   });
   return result.filter((x) => !!x);
-
-  // return groups.sort((a, b) => {
-  //     console.assert(GROUP_KIND_ORDER[b.kind] && GROUP_KIND_ORDER[a.kind]);
-  //     return GROUP_KIND_ORDER[a.kind] === GROUP_KIND_ORDER[b.kind]
-  //         ? 0
-  //         : GROUP_KIND_ORDER[a.kind] < GROUP_KIND_ORDER[b.kind]
-  //         ? -1
-  //         : +1;
-  // });
 }
 
 /**
@@ -991,18 +1050,15 @@ function renderTag(node: Reflection, tag: string, text: string) {
   switch (tag) {
     case 'method':
       result +=
-        '<strong>Method:</strong> ' +
-        markdown.render(renderLinkTags(node, text));
+        strong('Method: ') + markdown.render(renderLinkTags(node, text));
       break;
     case 'module':
       result +=
-        '<strong>Module:</strong> ' +
-        markdown.render(renderLinkTags(node, text));
+        strong('Module: ') + markdown.render(renderLinkTags(node, text));
       break;
     case 'function':
       result +=
-        '<strong>Function:</strong> ' +
-        markdown.render(renderLinkTags(node, text));
+        strong('Function: ') + markdown.render(renderLinkTags(node, text));
       break;
     case 'example':
       result +=
@@ -1080,7 +1136,7 @@ function renderTag(node: Reflection, tag: string, text: string) {
           tag
         )
       ) {
-        result += '<strong>' + tag + '</strong>';
+        result += strong(tag);
       } else {
         // console.log('Unexpected tag ' + tag);
       }
@@ -1214,23 +1270,7 @@ function getQualifiedName(node: Reflection): string {
   if (!node || node.kind === 0) return '';
   if (node.kind === 128 && hasFlag(node, 'isAbstract')) {
     // Class
-    return (
-      keyword('abstract class ') + '<strong>' + getName(node) + '</strong>'
-    );
-  }
-  // There's a bug in typedoc:
-  // https://github.com/TypeStrong/typedoc/issues/1284
-  // exported modules are returned as 'namespace' with a stringLiteral value
-  // if (node.kind === 2 && /^"(.*)"$/.test(node.name)) {
-  //     return (
-  //         keyword('module ') +
-  //         '<strong>"' +
-  //         trimQuotes(node.name).replace(/\.d$/, '') +
-  //         '"</strong>'
-  //     );
-  // }
-  if (node.kind === 1) {
-    return keyword('module ') + '<strong>"' + getName(node) + '"</strong>';
+    return keyword('abstract class ') + strong(getName(node));
   }
   return (
     keyword(
@@ -1241,10 +1281,7 @@ function getQualifiedName(node: Reflection): string {
         2: 'namespace ',
         1: 'module ',
       }[node.kind] ?? ''
-    ) +
-    '<strong>' +
-    getName(node) +
-    '</strong>'
+    ) + strong(getName(node))
   );
 }
 
@@ -1473,7 +1510,7 @@ function renderLinkTags(node: Reflection, str: string) {
       console.warn('Unresolved link in "' + node.name + '": ', p1);
       return p1;
     }
-    return render(source, 'block-inherit'); // As a block, but exclude tags and @example
+    return renderComment(source, 'block-inherit'); // As a block, but exclude tags and @example
   });
 
   return str;
@@ -1483,13 +1520,12 @@ function renderLinkTags(node: Reflection, str: string) {
  */
 
 function renderNotices(node: Reflection, str: string): string {
-  const lines = str.split('\n');
   const blocks = [];
   let inShortBlock = false;
   let inLongBlock = false;
   let currentBlock = [];
   let currentType = '';
-  lines.forEach((line) => {
+  str.split('\n').forEach((line) => {
     if (inShortBlock) {
       // Looking for an empty line
       const m = line.match(/^\s*$/i);
@@ -1582,36 +1618,32 @@ function renderNotices(node: Reflection, str: string): string {
 }
 
 function renderComment(node: Reflection, style: string): string {
-  if (!node) return '';
-  if (node.signatures && !node.comment) {
-    return renderComment(node.signatures[0], style);
-  }
-  if (!node.comment) return '';
-  let result = '';
+  if (!node || !node.comment) return '';
+
   const newLine = '\n';
 
+  const result: string[] = [];
+
   if (node.comment.shortText) {
-    result += renderNotices(node, node.comment.shortText) + newLine;
+    result.push(renderNotices(node, node.comment.shortText));
   }
-  if (node.comment.text) {
-    result += renderNotices(node, node.comment.text) + newLine;
-  }
+  if (node.comment.text) result.push(renderNotices(node, node.comment.text));
+
   const remarks = getTag(node, 'remarks');
-  if (remarks) {
-    result += renderNotices(node, remarks) + newLine;
-  }
+  if (remarks) result.push(renderNotices(node, remarks));
+
   if (style !== 'block-inherit') {
     if (node.comment.tags && node.comment.tags.length > 0) {
-      result +=
-        newLine +
+      result.push('');
+      result.push(
         node.comment.tags
           .map((x) => renderTag(node, x.tag, x.text))
           .filter((x) => !!x)
-          .join(newLine + newLine) +
-        newLine;
+          .join(newLine + newLine)
+      );
     }
   }
-  return result;
+  return result.join(newLine);
 }
 
 function getModuleName(node): string {
@@ -1649,11 +1681,10 @@ function renderCard(
   content: string
 ): string {
   if (shouldIgnore(node)) return '';
-  if (!content) return '';
 
   const parent = getParent(node);
   if (!displayName) {
-    displayName = `<strong>${getName(node)}</strong>`;
+    displayName = strong(getName(node));
     // If enum, variable (property), function (method), class,
     // interface
     if (
@@ -1665,34 +1696,80 @@ function renderCard(
       node.kind === 1024 ||
       node.kind === 2048
     ) {
-      if (
-        parent &&
-        ((parent.kind === 2 && !/^"(.*)"$/.test(parent.name)) ||
-          parent.kind === 128 ||
-          parent.kind === 256)
-      ) {
-        // Parent is a namespace or class or interface
-        displayName = getName(parent) + punct('.') + displayName;
-      }
+      // if (
+      //   parent &&
+      //   ((parent.kind === 2 && !/^"(.*)"$/.test(parent.name)) ||
+      //     parent.kind === 128 ||
+      //     parent.kind === 256)
+      // ) {
+      //   // Parent is a namespace or class or interface
+      //   displayName = getName(parent) + punct('.') + displayName;
+      // }
     }
-    if (node.kind === 64) {
-      // Function
-      displayName += punct('()');
-    }
+    // Function
+    if (node.kind === 64) displayName += punct('()');
   }
 
   const permalink = makePermalink(node);
   // The permalink should refer to this document (and therefore be empty)
   console.assert(!permalink.document);
 
-  const header = heading(3, getQualifiedName(parent), displayName, permalink, {
-    deprecated: hasTag(node, 'deprecated'),
-  });
+  const header = heading(
+    3,
+    parent.kind > 2 ? getQualifiedName(parent) : '',
+    displayName,
+    permalink,
+    {
+      deprecated: hasTag(node, 'deprecated'),
+    }
+  );
   return section(header + content, {
     permalink,
     className: 'card',
     keywords: getKeywords(node).join(', '),
   });
+}
+
+function renderSignature(name: string, node: Reflection): string {
+  let result = renderFlags(node);
+  if (node.name === 'parse') {
+    console.log('stop');
+  }
+  if (node.parameters) {
+    const noComments = node.parameters.every((x) => !x.comment);
+    if (noComments && complexity(node) < 5) {
+      result += div(name + render(node, 'inline'), 'code');
+      result += renderComment(node, 'block');
+      return div(result);
+    }
+  }
+
+  if (node.parameters) {
+    result += div(
+      name +
+        punct('(') +
+        node.parameters
+          .map((x) => {
+            let result = `<var>${x.name}</var>`;
+            if (hasFlag(x, 'isRest')) {
+              result = span('...', 'modifier') + result;
+            }
+            if (hasFlag(x, 'isOptional')) {
+              result = result + span('?', 'modifier');
+            }
+            return result;
+          })
+          .join(punct(', ')) +
+        punct(')'),
+      'code'
+    );
+  }
+  // Display info about each of the params...
+  result += render(node, 'block');
+
+  result += renderComment(node, 'block');
+
+  return div(result);
 }
 
 /**
@@ -1711,19 +1788,6 @@ function renderMethodCard(node: Reflection): string {
   const result = renderCommandCard(node);
   if (result) return result;
 
-  const parent = getParent(node);
-  let displayName = '';
-  let shortName = '';
-  if (node.kind === 512) {
-    // Constructor
-    // Constructors *always* have a (class) parent
-    displayName = `${keyword('new ')}<strong>${parent.name}</strong>`;
-    shortName = displayName;
-  } else {
-    shortName = `<strong>${node.name}</strong>`;
-    displayName = shortName;
-  }
-
   // Display one or more function signatures,
   // which include a summary of the signature, e.g.
   // - function foo.bar(x: string): number
@@ -1731,25 +1795,28 @@ function renderMethodCard(node: Reflection): string {
   // - details about each of the arguments
   const signatures = node.signatures.filter((x) => !shouldIgnore(x));
   if (signatures.length === 0) return '';
-  return renderCard(
-    node,
-    displayName,
+
+  const parent = getParent(node);
+  let displayName = '';
+  let shortName = '';
+  if (node.kind === 512) {
+    // Constructor
+    // Constructors *always* have a (class) parent
+    shortName = keyword('new ') + strong(parent.name);
+  } else {
+    shortName = strong(node.name);
+  }
+  displayName = shortName + punct('()');
+
+  const body =
     renderComment(node, 'block') +
-      div(
-        signatures
-          .map((signature) => {
-            let result = renderFlags(signature);
-            // Display the "short" signature (kind 4096)
-            result += div(shortName + render(signature, 'inline'), 'code');
+    div(
+      signatures
+        .map((signature) => renderSignature(shortName, signature))
+        .join('\n<hr>\n')
+    );
 
-            // Display info about each of the params...
-            result += render(signature, 'block');
-
-            return div(result);
-          })
-          .join('\n<hr>\n')
-      )
-  );
+  return renderCard(node, displayName, body);
 }
 
 /**
@@ -1758,34 +1825,123 @@ function renderMethodCard(node: Reflection): string {
 function renderAccessorCard(node: Reflection) {
   if (shouldIgnore(node)) return '';
 
-  let displayName = '';
-
-  if (node.getSignature && node.setSignature) {
-    // set/get
-    displayName = keyword('get/set ') + `<strong>${node.name}</strong>`;
-  } else if (node.getSignature) {
-    // get only
-    displayName = keyword('get ') + `<strong>${node.name}</strong>`;
-  } else {
-    // set only
-    displayName = keyword('set ') + `<strong>${node.name}</strong>`;
+  // In the simple (and most common) case, an accessor has a getter,
+  // optionally a setter, and they both have the same signature.
+  // In the more complex case, there may be multiple signatures, and the
+  // setter and getter signatures are different.
+  let simpleAccessor = false;
+  let getSignatures = (node.getSignature as Reflection[]) ?? [];
+  getSignatures = getSignatures.filter((x) => !shouldIgnore(x));
+  let setSignatures = (node.setSignature as Reflection[]) ?? [];
+  setSignatures = setSignatures.filter((x) => !shouldIgnore(x));
+  if (getSignatures.length === 1) {
+    if (setSignatures.length === 1) {
+      const gSig = render(getSignatures[0].type as Reflection, 'inline');
+      const sSig = render(
+        setSignatures[0].parameters[0].type as Reflection,
+        'inline'
+      );
+      if (gSig === sSig) {
+        simpleAccessor = true;
+      }
+    } else if (setSignatures.length === 0) {
+      simpleAccessor = true;
+    }
+  }
+  if (simpleAccessor) {
+    // Check that there is only one entry with comments
+    if (node.comment) {
+      const mainComment = renderComment(node, 'block');
+      if (
+        getSignatures?.[0].comment &&
+        renderComment(getSignatures[0], 'block') !== mainComment
+      ) {
+        simpleAccessor = false;
+      } else if (
+        setSignatures[0]?.comment &&
+        renderComment(setSignatures[0], 'block') !== mainComment
+      ) {
+        simpleAccessor = false;
+      }
+    } else {
+      if (getSignatures[0]?.comment) {
+        // The setter 'inherits' the getter comment, only consider the comment if different for the setter
+        if (
+          setSignatures[0]?.comment &&
+          renderComment(setSignatures[0], 'block') !==
+            renderComment(getSignatures[0], 'block')
+        ) {
+          simpleAccessor = false;
+        }
+      }
+    }
   }
 
-  const signature = node.getSignature
-    ? node.getSignature[0]
-    : node.setSignature[0];
-  let body = node.name + punct(': ') + render(signature.type, 'inline');
-  if (node.getSignature && !node.setSignature) {
-    body += '&nbsp;&nbsp;' + span('read only', 'modifier-tag');
-  } else if (!node.getSignature && node.setSignature) {
-    body += '&nbsp;&nbsp;' + span('write only', 'modifier-tag');
+  if (simpleAccessor) {
+    const mainComment = renderComment(node, 'block');
+    let comments = mainComment;
+    let getterComment = '';
+    if (getSignatures?.[0].comment) {
+      getterComment = renderComment(getSignatures[0], 'block');
+      if (mainComment && getterComment !== mainComment) {
+        comments += getterComment;
+      }
+    }
+    if (setSignatures[0]?.comment) {
+      const setterComment = renderComment(setSignatures[0], 'block');
+      if (getterComment && setterComment !== getterComment) {
+        comments += setterComment;
+      }
+    }
+
+    let displayName = strong(node.name) + punct(': ');
+
+    displayName += render(getSignatures[0].type as Reflection, 'inline');
+
+    if (node.getSignature && !node.setSignature) {
+      // get only
+      displayName += `&nbsp;&nbsp;${span('read only', 'modifier-tag')}`;
+    } else if (!node.getSignature && node.setSignature) {
+      // set only
+      displayName += `&nbsp;&nbsp;${span('write only', 'modifier-tag')}`;
+    }
+
+    return renderCard(node, displayName, comments);
   }
 
-  return renderCard(
-    node,
-    displayName,
-    div(body) + renderComment(node, 'block')
-  );
+  const displayName = strong(node.name);
+  let body = div(renderComment(node, 'block'));
+
+  let primaryComment = '';
+
+  for (const sig of getSignatures) {
+    let comment = renderComment(sig, 'block');
+    if (primaryComment && comment === primaryComment) comment = '';
+    else if (!primaryComment) primaryComment = comment;
+    body += div(
+      keyword('get ') +
+        displayName +
+        punct('(): ') +
+        render(sig.type as Reflection, 'inline') +
+        comment
+    );
+  }
+
+  for (const sig of setSignatures) {
+    let comment = renderComment(sig, 'block');
+    if (primaryComment && comment === primaryComment) comment = '';
+    else if (!primaryComment) primaryComment = comment;
+    body += div(
+      keyword('set ') +
+        displayName +
+        punct('(') +
+        render(sig.parameters[0].type as Reflection, 'inline') +
+        punct(')') +
+        comment
+    );
+  }
+
+  return renderCard(node, displayName, div(body));
 }
 
 /**
@@ -1814,9 +1970,15 @@ function renderClassSection(node: Reflection): string {
   const parent = getParent(node);
 
   const result =
-    heading(2, getQualifiedName(parent), getQualifiedName(node), permalink, {
-      deprecated: hasTag(node, 'deprecated'),
-    }) + renderFlags(node);
+    heading(
+      2,
+      parent.kind > 2 ? getQualifiedName(parent) : '',
+      getQualifiedName(node),
+      permalink,
+      {
+        deprecated: hasTag(node, 'deprecated'),
+      }
+    ) + renderFlags(node);
 
   let body = '';
   if (node.extendedTypes) {
@@ -1899,11 +2061,7 @@ function renderClassCard(node) {
             r +=
               x.signatures
                 .map((signature) => {
-                  let sigResult =
-                    renderFlags(x, 'inline') +
-                    '<strong>' +
-                    x.name +
-                    '</strong>';
+                  let sigResult = renderFlags(x, 'inline') + strong(x.name);
                   if (hasFlag(x, 'isOptional')) {
                     sigResult += span('?', 'modifier');
                   }
@@ -1917,7 +2075,7 @@ function renderClassCard(node) {
                 .join('</dd><dt>') + '</dd>';
           } else if (x.kind === 1024) {
             // Property
-            r += '<strong>' + x.name + '</strong>';
+            r += strong(x.name);
             if (hasFlag(x, 'isOptional')) {
               r += span('?', 'modifier');
             }
@@ -1972,13 +2130,13 @@ function renderCommandCard(node) {
   params.shift(); // The sender
   if (params.length > 0) {
     result += punct('[');
-    result += span('"' + node.name + '"', 'string-literal');
+    result += quotedString(node.name);
     result += punct(', ');
     result += params.map((x) => render(x)).join(punct(', '));
     result += punct(']');
   } else {
     // No extra params, just the selector
-    result += span('"' + node.name + '"', 'string-literal');
+    result += quotedString(node.name);
   }
   result += punct(')');
   if (signature.type) {
@@ -1995,7 +2153,7 @@ function renderCommandCard(node) {
         '\n<dt>\n' +
         params
           .map((param) => {
-            let r = '<strong><var>' + param.name + '</var></strong>';
+            let r = strong('<var>' + param.name + '</var>');
             const typeDef = render(param.type, 'block');
             if (typeDef) {
               r += punct(': ') + typeDef;
@@ -2010,7 +2168,7 @@ function renderCommandCard(node) {
     if (signature.type && hasTag(node, 'returns')) {
       // The is a return type
       result += '\n<dt>\n';
-      result += '<strong>→ </strong>' + render(signature.type);
+      result += strong('→ ') + render(signature.type);
       result += '\n</dt><dd>\n';
       if (hasTag(node, 'returns')) {
         result += renderNotices(node, getTag(node, 'returns'));
@@ -2025,11 +2183,7 @@ function renderCommandCard(node) {
     node,
     // Note: the '&#8203;' (zws) after 'command' is important to ensure
     // that double-clicking on the name selects only the name
-    span('command', 'modifier-tag') +
-      '<strong>' +
-      '&#8203;' +
-      node.name +
-      '</strong>',
+    span('command', 'modifier-tag') + strong('&#8203;' + node.name),
     result + renderComment(node, 'block')
   );
 }
@@ -2047,14 +2201,20 @@ function renderPropertyCard(node) {
   const result = renderCommandCard(node);
   if (result) return result;
 
-  const parent = getParent(node);
-  let displayName = '';
-  let shortName = '';
-  if (parent && (parent.kind & (1 | 2 | 4 | 128 | 256)) !== 0) {
-    // Parent is a module, namespace, enum, class or interface
-    // Function or method
-    shortName = `<strong>${node.name}</strong>`;
-    displayName = parent.name + '.' + shortName;
+  const displayName = strong(node.name);
+  // let shortName = '';
+  // if (parent && (parent.kind & (1 | 2 | 4 | 128 | 256)) !== 0) {
+  //   // Parent is a module, namespace, enum, class or interface
+  //   // Function or method
+  //   displayName = strong(node.name);
+  //   // displayName = parent.name + '.' + shortName;
+  // }
+  if (complexity(node) < 5) {
+    return renderCard(
+      node,
+      displayName + punct(': ') + render(node.type, 'inline'),
+      renderComment(node, 'block')
+    );
   }
   return renderCard(
     node,
@@ -2087,11 +2247,14 @@ function renderEnumCard(node: Reflection): string {
 function renderTypeAliasCard(node: Reflection): string {
   if (shouldIgnore(node)) return '';
   let result = renderComment(node, 'block');
+
+  if (node.name === 'CompiledExpression') {
+    console.log('stop');
+  }
+
   const typeDef = render(node, 'block');
   if (typeDef) {
-    if (result) {
-      result += '\n<hr>\n';
-    }
+    if (result) result += '\n<hr>\n';
     result += div(typeDef, 'code');
   }
   return renderCard(node, '', result);
@@ -2207,13 +2370,13 @@ function render(node: Reflection | number, style = 'inline'): string {
   // On occasion, some nodes are not reachable by traversing the
   // tree. In this case, getReflectionById() fails and render()
   // can get called with an undefined node. Fail gracefully.
-  // This happens for example with
+  // This happens for example with:
+  //
   // ```
-  //   export function foo(options: {
-  //        withHighlighting: boolean;
-  //    }) : boolean
+  //   export function foo(options: { bar: boolean })
   // ```
-  // 'withHighlighting' is a variable, but unreachable
+  //
+  // 'bar' is unreachable
 
   if (node === undefined) return '';
   if (typeof node === 'number') node = getReflectionByID(node);
@@ -2234,7 +2397,8 @@ function render(node: Reflection | number, style = 'inline'): string {
       if (!result) return '';
       const permalink = makePermalink(node);
       return section(
-        heading(2, '', getQualifiedName(node), permalink) + result,
+        // heading(2, '', getQualifiedName(node), permalink) + result,
+        result,
         { permalink }
       );
     }
@@ -2260,6 +2424,9 @@ abstract class Animal {
 
     if (node.type === 'array') {
       // @check (number | string)[]
+      if (node.elementType.type === 'union') {
+        return punct('(') + render(node.elementType, 'inline') + punct(')[]');
+      }
       return render(node.elementType, 'inline') + punct('[]');
     }
 
@@ -2326,13 +2493,7 @@ abstract class Animal {
 
     if (node.type === 'named-tuple-member') {
       //e.g. [start: number, end: number]
-      return (
-        '<strong>' +
-        node.name +
-        '</strong>' +
-        punct(': ') +
-        render(node.element)
-      );
+      return strong(node.name) + punct(': ') + render(node.element);
     }
 
     if (node.type === 'reference') {
@@ -2401,7 +2562,7 @@ abstract class Animal {
     }
 
     if (node.type === 'literal') {
-      return span('"' + node.value + '"', 'string-literal');
+      return literalToString(node.value);
     }
 
     if (node.type === 'reflection') {
@@ -2409,7 +2570,7 @@ abstract class Animal {
     }
 
     if (node.type === 'rest') {
-      return '...' + render(node.elementType, style);
+      return span('...', 'modifier') + render(node.elementType, style);
     }
 
     if (node.type === 'tuple') {
@@ -2462,6 +2623,8 @@ abstract class Animal {
     if (node.type === 'void') {
       return keyword('void');
     }
+
+    return '';
   }
 
   let result = '';
@@ -2477,7 +2640,7 @@ abstract class Animal {
 
     case 16: // Enum Member
       result = `<dt id="${encodeURIComponent(makePermalink(node).anchor)}">`;
-      result += '<strong>' + node.name + '</strong>';
+      result += strong(node.name);
       if (typeof node.defaultValue === 'string') {
         result += punct(' = ') + node.defaultValue;
       }
@@ -2496,7 +2659,7 @@ abstract class Animal {
           div(render(node, 'block')) + renderComment(node, 'block')
         );
       } else {
-        result += '<strong>' + node.name + '</strong>';
+        result += strong(node.name);
         if (hasFlag(node, 'isOptional')) {
           result += span('?', 'modifier');
         }
@@ -2582,13 +2745,14 @@ abstract class Animal {
       }
       break;
 
-    case 2048: // Method (of a class or interface) (may have multiple signatures)
+    case 2048: // Method (of a class or interface or type) (may have multiple signatures)
       if (style === 'card' || style === 'section') {
         result = renderMethodCard(node);
       } else {
-        // Only render the comment
-        // This code path is used with @inheritDoc()
-        result = renderComment(node, 'block');
+        result = node.name;
+        if (hasFlag(node, 'isOptional')) result += span('?', 'modifier');
+        result += punct(': ');
+        result += node.signatures.map((x) => render(x, 'inline')).join('; ');
       }
       break;
 
@@ -2614,7 +2778,13 @@ abstract class Animal {
               '\n<dt>\n' +
               node.parameters
                 .map((param) => {
-                  let r = '<strong><var>' + param.name + '</var></strong>';
+                  let r = strong('<var>' + param.name + '</var>');
+                  if (hasFlag(param, 'isRest')) {
+                    r = span('...', 'modifier') + r;
+                  }
+                  if (hasFlag(param, 'isOptional')) {
+                    r = r + span('?', 'modifier');
+                  }
                   const typeDef = render(param.type as Reflection, 'block');
                   if (typeDef) {
                     r += punct(': ') + typeDef;
@@ -2631,7 +2801,7 @@ abstract class Animal {
             (node.comment?.returns || !isVoid(node.type as Reflection))
           ) {
             result += '\n<dt>\n';
-            result += '<strong>→ </strong>' + render(node.type as Reflection);
+            result += strong('→ ') + render(node.type as Reflection);
             result += '\n</dt><dd>\n';
             if (node.comment?.returns) {
               result += renderNotices(node, node.comment.returns);
@@ -2709,7 +2879,7 @@ abstract class Animal {
             result += node.children.map((x) => render(x)).join(punct('; '));
           }
           if (node.indexSignature) {
-            render(node.indexSignature);
+            result += render(node.indexSignature);
             // result += node.indexSignature
             //   .map((x) => render(x))
             //   .join(punct('; '));
@@ -2762,13 +2932,9 @@ abstract class Animal {
         result = '';
         if (node.typeParameter) {
           result += punct('&lt;');
-          result += node.typeParameter
-            .map((typeParam) => render(typeParam))
-            .join(punct(', '));
+          result += node.typeParameter.map((x) => render(x)).join(punct(', '));
           result += punct('&gt;');
-          if (def) {
-            result += punct(' = ');
-          }
+          if (def) result += punct(' = ');
         }
         result += def;
       }
@@ -2790,24 +2956,44 @@ abstract class Animal {
   return result;
 }
 
-function getReflectionsFromFile(src: string[], options: Options): Reflection {
-  let result = {};
+function getReflectionsFromFile(
+  projectRootDir: string,
+  options: Options
+): Reflection {
+  const projectDir = path.resolve(path.normalize(projectRootDir));
+  if (!pathExistsSync(projectDir)) {
+    console.error(`Project directory not found "${projectDir}"`);
+    return {};
+  }
+
+  // In order to correctly parse a project, TypeDoc needs access to the
+  // tsconfig.json file for that project.
+  // It expects it in the current directory :(
+
+  const cwd = process.cwd();
+  process.chdir(projectDir);
+
+  let entryPoint = projectDir;
+  if (options.inFile) {
+    entryPoint = path.resolve(path.normalize(options.inFile));
+    if (!pathExistsSync(projectDir)) {
+      console.error(`Entry point file not found "${entryPoint}"`);
+      return {};
+    }
+  }
+
   const app = new Application();
 
-  // If you want TypeDoc to load tsconfig.json / typedoc.json files
-  app.options.addReader(new TSConfigReader());
   app.options.addReader(new TypeDocReader());
+
+  app.options.addReader(new TSConfigReader());
 
   app.bootstrap({
     logger: (message: string, level: number, _newline) => {
-      if (level > 0) console.log(message);
+      if (level > 0 || options.verbose) console.log(message);
     },
 
-    entryPoints: src.map((x) => {
-      const f = path.resolve(path.normalize(x));
-      if (!pathExistsSync(f)) console.warn('File not found "' + f + '"');
-      return f;
-    }),
+    entryPoints: [entryPoint],
     excludePrivate: true,
 
     // To exclude references from external files
@@ -2820,20 +3006,13 @@ function getReflectionsFromFile(src: string[], options: Options): Reflection {
   });
 
   const project = app.convert();
-  // if (convertResult.errors?.length) {
-  //   app.logger.diagnostics(convertResult.errors);
-  //   if (options.ignoreErrors) {
-  //     app.logger.resetErrors();
-  //   } else {
-  //     return undefined;
-  //   }
-  // }
 
-  if (project) {
-    result = app.serializer.projectToObject(project);
-  }
+  // Restore the working directory
+  process.chdir(cwd);
 
-  return result as Reflection;
+  if (project) return app.serializer.projectToObject(project);
+
+  return {} as Reflection;
 }
 
 function applyTemplate(
@@ -2867,7 +3046,7 @@ let gOptions: Options;
  */
 
 export function grok(
-  src: string[],
+  src: string,
   options: Options
 ): { [file: string]: string } {
   try {
@@ -2882,10 +3061,8 @@ export function grok(
     let content;
     let directoryName = '';
 
-    if (src.length === 1) {
-      if (lstatSync(src[0]).isDirectory()) {
-        directoryName = path.basename(src[0]);
-      }
+    if (lstatSync(src).isDirectory()) {
+      directoryName = path.basename(src);
     }
 
     if (options.modules && options.modules.length > 0) {
