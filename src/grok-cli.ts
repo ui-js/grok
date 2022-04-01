@@ -1,5 +1,8 @@
 import { grok, Options } from './grok';
+
 import { terminal } from './terminal';
+// const terminal = require('./terminal');
+
 // import path from 'path';
 const path = require('path');
 
@@ -324,10 +327,10 @@ function build(argv): void {
     //
     // 4. Process the command
     //
-    if (!argv['paths'] || argv['paths'].length < 1) {
+    if (!argv['project-root']) {
       console.error(
         terminal.error() +
-          `Expected at least one path to a directory or TypeScript declaration file.\n` +
+          `Expected a root directory for a TypeScript project (containing tsconfig.json files).\n` +
           `    Use ${terminal.keyword(
             argv.$0 + ' help'
           )} for available options.\n`
@@ -335,7 +338,7 @@ function build(argv): void {
       process.exit(1);
     }
 
-    outputResult(options['outDir'] ?? '.', grok(argv['paths'], options));
+    outputResult(options['outDir'] ?? '.', grok(argv['project-root'], options));
   } catch (err) {
     console.error(err);
   }
@@ -343,43 +346,57 @@ function build(argv): void {
 
 function buildOptions(yargs): void {
   yargs
-    .positional('<path>', {
-      describe: 'Path to a TypeScript declaration file or directory',
+    .positional('<project-root>', {
+      describe:
+        'Path to the root directory of a TypeScript project\n(directory containing tsconfig.json)',
       type: 'path',
     })
-    .normalize('path')
+    .normalize('project-root')
+
+    .option('inFile', {
+      describe: 'Entry point .ts file, relative to <project-root>',
+      type: 'path',
+    })
+
     .option('modules', {
       describe: 'List of modules to document (space separated)',
       type: 'array',
     })
+
     .option('sdkName', {
       describe: 'Name of the API/Library/Module being documented',
       type: 'string',
     })
+
     .option('outFile', {
       describe: 'Save output to file (in outDir)',
       type: 'path',
     })
     .normalize('outFile')
+
     .option('outDir', {
       alias: 'o',
-      describe: 'Save output to path',
+      describe: 'Path to directory to save output in',
       type: 'path',
     })
     .normalize('outDir')
+
     .option('config', {
       describe: 'Load config file from path',
       type: 'path',
     })
     .normalize('config')
+
     .option('verbose', {
       describe: 'Display additional information during processing',
       type: 'boolean',
     })
+
     .option('no-color', {
       describe: 'Suppress color output in terminal',
       type: 'boolean',
     })
+
     .option('ignore-errors', {
       alias: 'i',
       describe: 'Attempt to continue when an error is encountered',
@@ -394,7 +411,7 @@ require('yargs')
     'Generate a HTML documentation page from a TypeScript declaration file'
   )
   .command(
-    ['* <paths..>', 'build <paths..>'],
+    ['* <project-root>', 'build <project-root>'],
     'grok build documentation',
     buildOptions,
     build
