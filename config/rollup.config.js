@@ -6,6 +6,8 @@ import pkg from '.././package.json';
 process.env.BUILD = process.env.BUILD || 'development';
 const PRODUCTION = process.env.BUILD === 'production';
 
+console.log('PRODUCTION', PRODUCTION);
+
 const TYPESCRIPT_OPTIONS = {
   typescript: require('typescript'),
   clean: PRODUCTION,

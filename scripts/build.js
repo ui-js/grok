@@ -22,6 +22,7 @@ build({
     'yargs',
   ],
   banner: { js: '#!/usr/bin/env node' },
-  minify: true,
-  // logLevel: 'debug',
+  minify: false,
+  sourcemap: true,
+  logLevel: 'debug',
 });
