@@ -211,6 +211,7 @@ type Reflection = {
   extendedBy?: Reflection[]; // For kind = : Class
   implementedBy?: Reflection[]; // For kind = : Class
   queryType?: Reflection; // For kind = 'query'
+  targetType?: Reflection; // For kind = 'predicate'
   inheritedFrom?: Reflection; // For kind = 'method', parent class
   implementationOf?: Reflection; // For kind = 'method', interface
   sources?: {
@@ -615,12 +616,9 @@ const GROUP_KIND_ORDER = {
 function sortGroups(groups: Reflection[]): Reflection[][] {
   const result = [];
   groups.forEach((x) => {
-    const kindOrder = GROUP_KIND_ORDER[x.kind] ?? 12;
-    if (result[kindOrder]) {
-      result[kindOrder].push(x);
-    } else {
-      result[kindOrder] = [x];
-    }
+    const kindOrder = GROUP_KIND_ORDER[x.kind] ?? 100;
+    if (result[kindOrder]) result[kindOrder].push(x);
+    else result[kindOrder] = [x];
   });
   return result.filter((x) => !!x);
 }
@@ -1732,9 +1730,7 @@ function renderCard(
 
 function renderSignature(name: string, node: Reflection): string {
   let result = renderFlags(node);
-  if (node.name === 'parse') {
-    console.log('stop');
-  }
+
   if (node.parameters) {
     const noComments = node.parameters.every((x) => !x.comment);
     if (noComments && complexity(node) < 5) {
@@ -2248,10 +2244,6 @@ function renderTypeAliasCard(node: Reflection): string {
   if (shouldIgnore(node)) return '';
   let result = renderComment(node, 'block');
 
-  if (node.name === 'CompiledExpression') {
-    console.log('stop');
-  }
-
   const typeDef = render(node, 'block');
   if (typeDef) {
     if (result) result += '\n<hr>\n';
@@ -2278,19 +2270,27 @@ function renderTypeAliasCard(node: Reflection): string {
 function renderGroup(node: Reflection, groupCollection: Reflection[]): string {
   const categories = [];
   // Merge the categories of similar groups (methods, get/set)
-  groupCollection.forEach((group) => {
+  groupCollection.forEach((group) =>
     getCategories(node, group.kind).forEach((cat) => {
       const existingCat = categories.find((x) => x.title === cat.title);
+      cat = { ...cat, children: cat.children.filter((x) => !shouldIgnore(x)) };
       if (existingCat) {
-        existingCat.children = [...existingCat.children, ...cat.children];
+        existingCat.children.push(...cat.children);
       } else {
         categories.push(cat);
       }
-    });
-  });
+    })
+  );
   // If there are any children, there should always be at least
-  // one "Other" topic
+  // one "Other" category
   if (categories.length === 0) return '';
+
+  for (const cat of categories) {
+    cat.children.sort((a, b) =>
+      a.name === b.name ? 0 : a.name > b.name ? +1 : -1
+    );
+  }
+
   // Render heading for group, e.g. "Types"... and index
   let header = '';
   const kind = categories[0].kind;
@@ -2302,7 +2302,7 @@ function renderGroup(node: Reflection, groupCollection: Reflection[]): string {
       // It's a series of commands. Display the index, but no title
       header += renderIndex(node, '', categories);
     } else if (
-      (kind & (2 | 4 | 128 | 256)) === 0 &&
+      (kind & (1 | 2 | 4 | 64 | 128 | 256 | 1024 | 2048 | 4194304)) !== 0 &&
       categories.reduce((acc, x) => acc + x.children.length, 0) > 1
     ) {
       // A group of things other than namespaces, enums, classes or
@@ -2314,7 +2314,9 @@ function renderGroup(node: Reflection, groupCollection: Reflection[]): string {
         32: 'Variables',
         64: 'Functions',
         128: 'Classes',
-        245: 'Interfaces',
+        256: 'Interfaces',
+        1024: 'Properties / Methods',
+        2048: 'Methods / Properties',
         4194304: 'Types',
       }[kind];
       header += renderIndex(node, displayTitle, categories);
@@ -2346,8 +2348,8 @@ function renderGroups(node: Reflection): string {
   return (
     renderComment(node, 'section') +
     groups
-      .map((x) => renderGroup(node, x))
       .filter((x) => !!x)
+      .map((x) => renderGroup(node, x))
       .join('\n\n')
   );
 }
@@ -2477,7 +2479,8 @@ abstract class Animal {
     }
 
     if (node.type === 'predicate') {
-      console.error('Unexpected node type ', node.type);
+      // eg. "a is A" in "f(a: any): a is A"
+      return node.name + keyword(' is ') + render(node.targetType);
     }
 
     if (node.type === 'query') {
