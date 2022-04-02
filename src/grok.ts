@@ -380,7 +380,7 @@ function heading(
     body = span(body, 'stack');
   }
   if (options?.className) {
-    return `<h${level}class="${options.className}">${body}</h${level}>`;
+    return `<h${level} class="${options.className}">${body}</h${level}>`;
   }
   return `<h${level}>${body}</h${level}>`;
 }
@@ -1699,6 +1699,11 @@ function renderComment(node: Reflection, style: string): string {
     // 'type' node
     r += renderComment(node.type as Reflection, style);
   }
+
+  if (node.kind === 2048 && node.signatures) {
+    const sigComment = renderComment(node.signatures[0] as Reflection, style);
+    if (sigComment !== r) r += sigComment;
+  }
   return r;
 }
 
@@ -1816,17 +1821,14 @@ function renderSignature(name: string, node: Reflection): string {
 
   if (node.parameters) {
     result += div(
-      name +
+      varTag(name) +
         punct('(') +
         node.parameters
           .map((x) => {
             let result = varTag(x.name);
-            if (hasFlag(x, 'isRest')) {
-              result = span('...', 'modifier') + result;
-            }
-            if (hasFlag(x, 'isOptional')) {
-              result = result + span('?', 'modifier');
-            }
+            if (hasFlag(x, 'isRest')) result = span('...', 'modifier') + result;
+            if (hasFlag(x, 'isOptional')) result += span('?', 'modifier');
+
             return result;
           })
           .join(punct(', ')) +
@@ -1872,9 +1874,9 @@ function renderMethodCard(node: Reflection): string {
   if (node.kind === 512) {
     // Constructor
     // Constructors *always* have a (class) parent
-    shortName = keyword('new ') + strong(parent.name);
+    shortName = keyword('new ') + varTag(parent.name);
   } else {
-    shortName = strong(node.name);
+    shortName = varTag(node.name);
   }
   displayName = shortName + punct('()');
 
@@ -1941,7 +1943,7 @@ function renderAccessorCard(node: Reflection) {
   comments = div(renderComment(node, 'block') + comments);
 
   if (simpleAccessor) {
-    let displayName = strong(node.name) + punct(': ');
+    let displayName = varTag(node.name) + punct(': ');
     displayName += render(getSignatures[0].type as Reflection, 'inline');
 
     if (node.getSignature && !node.setSignature) {
@@ -1955,7 +1957,7 @@ function renderAccessorCard(node: Reflection) {
     return renderCard(node, displayName, comments);
   }
 
-  const displayName = strong(node.name);
+  const displayName = varTag(node.name);
 
   let body = '';
 
@@ -2096,7 +2098,7 @@ function renderClassCard(node) {
             // Method
             r += x.signatures
               .map((signature) => {
-                let sigResult = strong(x.name);
+                let sigResult = varTag(x.name);
                 if (hasFlag(x, 'isOptional')) {
                   sigResult += span('?', 'modifier');
                 }
@@ -2110,10 +2112,8 @@ function renderClassCard(node) {
               .join('</dd><dt>');
           } else if (x.kind === 1024) {
             // Property
-            r += strong(x.name);
-            if (hasFlag(x, 'isOptional')) {
-              r += span('?', 'modifier');
-            }
+            r += varTag(x.name);
+            if (hasFlag(x, 'isOptional')) r += span('?', 'modifier');
             r +=
               punct(': ') +
               render(x.type as Reflection) +
@@ -2218,7 +2218,7 @@ function renderCommandCard(node) {
     node,
     // Note: the '&#8203;' (zws) after 'command' is important to ensure
     // that double-clicking on the name selects only the name
-    span('command', 'modifier-tag') + strong('&#8203;' + node.name),
+    span('command', 'modifier-tag') + '&#8203;' + strong(node.name),
     result + renderComment(node, 'block')
   );
 }
@@ -2502,14 +2502,14 @@ abstract class Animal {
           node.types
             .map((x) => render(x, 'block'))
             .filter((x) => !!x)
-            .join(punct(' &amp; ') + '</li>\n<li>') +
+            .join(punct(' & ') + '</li>\n<li>') +
           '</li></ul>'
         );
       }
       return node.types
         .map((x) => render(x))
         .filter((x) => !!x)
-        .join(punct(' &amp; '));
+        .join(punct(' & '));
     }
 
     if (node.type === 'intrinsic') {
@@ -2701,12 +2701,10 @@ abstract class Animal {
         );
       } else {
         result += strong(node.name);
-        if (hasFlag(node, 'isOptional')) {
-          result += span('?', 'modifier');
-        }
+        if (hasFlag(node, 'isOptional')) result += span('?', 'modifier');
         if ((node.type as Reflection)?.type === 'unknown') {
           result += punct(' = ');
-          result += (node.type as Reflection).name || '';
+          result += (node.type as Reflection).name ?? '';
         }
         if ((node.type as Reflection)?.type !== 'unknown') {
           result += punct(': ');
@@ -2820,16 +2818,11 @@ abstract class Animal {
               node.parameters
                 .map((param) => {
                   let r = varTag(param.name);
-                  if (hasFlag(param, 'isRest')) {
-                    r = span('...', 'modifier') + r;
-                  }
-                  if (hasFlag(param, 'isOptional')) {
-                    r = r + span('?', 'modifier');
-                  }
+                  if (hasFlag(param, 'isRest')) r = span('...', 'modifier') + r;
+                  if (hasFlag(param, 'isOptional')) r += span('?', 'modifier');
+
                   const typeDef = render(param.type as Reflection, 'block');
-                  if (typeDef) {
-                    r += punct(': ') + typeDef;
-                  }
+                  if (typeDef) r += punct(': ') + typeDef;
                   r += '\n</dt><dd>\n';
                   r += renderComment(param, style);
                   return r;
@@ -2872,13 +2865,10 @@ abstract class Animal {
     case 32768: // Parameter
       // E.g. "foo: string" in "[foo: string]: string"
       // Also "a:T" in "f(a:T)"
-      if (hasFlag(node, 'isRest')) {
-        result += span('...', 'modifier');
-      }
+      if (hasFlag(node, 'isRest')) result += span('...', 'modifier');
       result += varTag(node.name);
-      if (hasFlag(node, 'isOptional')) {
-        result += span('?', 'modifier');
-      }
+      if (hasFlag(node, 'isOptional')) result += span('?', 'modifier');
+
       result += punct(': ') + render(node.type as Reflection);
       break;
 
@@ -2894,9 +2884,7 @@ abstract class Animal {
             result += node.children
               .map((x) => {
                 let dt = render(x) + punct(';');
-                if (hasTag(x, 'deprecated')) {
-                  dt += span(dt, 'deprecated');
-                }
+                if (hasTag(x, 'deprecated')) dt = span(dt, 'deprecated');
                 return `<dt>${dt}</dt><dd>${renderComment(x, style)}</dd>`;
               })
               .join('');
