@@ -260,20 +260,26 @@ function div(content: string, className?: string) {
 }
 
 function punct(value: string): string {
-  return '<span class="punctuation">' + value + '</span>';
+  return `<span class="punctuation">${escapeHtml(value)}</span>`;
 }
 
 function keyword(k: string): string {
-  return '<span class="keyword">' + k + '</span>';
+  return `<span class="keyword">${escapeHtml(k)}</span>`;
 }
 
 function strong(s: string): string {
   if (!s) return '';
-  return `<strong>${s}</strong>`;
+  return `<strong>${escapeHtml(s)}</strong>`;
+}
+
+function varTag(s: string): string {
+  if (s.startsWith('→')) return `<var class="return">${s}</var>`;
+
+  return `<var>${escapeHtml(s)}</var>`;
 }
 
 function quotedString(s: string): string {
-  return `<span class="string-literal">"${s}"</span>`;
+  return `<span class="string-literal">&quot;${escapeHtml(s)}&quot;</span>`;
 }
 
 function literalToString(v: any): string {
@@ -290,7 +296,7 @@ function literalToString(v: any): string {
     return v ? keyword('true') : keyword('false');
   }
   if (typeof v === 'number') {
-    return span(v.toString(), 'num-literal');
+    return span(escapeHtml(v.toString()), 'num-literal');
   }
   if (typeof v === 'string') return quotedString(v);
   // @todo: could do object literal, symbols...
@@ -329,7 +335,7 @@ function list(
       result += '\n<dl>\n';
     }
     result += definitions
-      .map((def) => '\n<dt>' + def[0] + '</dt>\n<dd>' + def[1] + '</dd>\n')
+      .map((def) => `\n<dt>${def[0]}</dt>\n<dd>${def[1]}</dd>\n`)
       .join('');
     result += '\n</dl>\n';
   } else {
@@ -361,8 +367,6 @@ function heading(
   permalink?: Permalink,
   options?: { deprecated?: boolean; className?: string }
 ) {
-  const tag = `h${level}`;
-
   let body = subhead ? span(subhead, 'subhead') : '';
 
   if (permalink?.anchor) {
@@ -375,26 +379,45 @@ function heading(
     body += span(head, options?.deprecated ? 'head deprecated' : 'head');
     body = span(body, 'stack');
   }
-  return (
-    '<' +
-    tag +
-    (options?.className ? ' class="' + options.className + '"' : '') +
-    '>' +
-    body +
-    '</' +
-    tag +
-    '>'
-  );
+  if (options?.className) {
+    return `<h${level}class="${options.className}">${body}</h${level}>`;
+  }
+  return `<h${level}>${body}</h${level}>`;
 }
 
 function complexity(node: Reflection): number {
   if (node === undefined) return 0;
+
+  if (node.parameters) {
+    return node.parameters.reduce((acc, v) => acc + complexity(v), 0);
+  }
+
   if (typeof node === 'number') node = getReflectionByID(node);
   if (typeof node === 'string') node = getReflectionByName(node);
 
   // Function sig, ctor sig, accessor
   if (node.kind === 4096 || node.kind === 16384 || node.kind === 524288) {
     return 1 + node.parameters.reduce((acc, x) => acc + complexity(x), 0);
+  }
+
+  // Parameter
+  if (node.kind === 32768) {
+    return 1 + complexity(node.type as Reflection);
+  }
+
+  // Type literal
+  if (node.kind === 65536) {
+    if (node.children) {
+      return 1 + node.children.reduce((acc, v) => acc + complexity(v), 0);
+    }
+    if (node.signatures) {
+      return 1 + node.signatures.reduce((acc, v) => acc + complexity(v), 0);
+    }
+  }
+
+  if (node.kind === 1024) {
+    // Property
+    return 1 + complexity(node.type as Reflection);
   }
 
   if (node.type === 'intrinsic') return 1;
@@ -486,6 +509,7 @@ function getReflectionByName(
 }
 
 const NUMERIC_KIND = {
+  project: 1,
   namespace: 2,
   enum: 4,
   variable: 32,
@@ -1044,7 +1068,7 @@ function renderFlags(node: Reflection, style = 'block') {
 function renderTag(node: Reflection, tag: string, text: string) {
   if (!tag || !text) return '';
   let result = '';
-  text = trimNewline(text.trim()) || '';
+  text = trimNewline(text.trim());
   switch (tag) {
     case 'method':
       result +=
@@ -1140,6 +1164,24 @@ function renderTag(node: Reflection, tag: string, text: string) {
       }
   }
   return result;
+}
+
+function escapeHtml(s: string) {
+  return String(s).replace(/[&<>"'`=/\u200b]/g, (s) => {
+    return (
+      {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+        '/': '&#x2F;',
+        '`': '&#x60;',
+        '=': '&#x3D;',
+        '\u200b': '&amp;#zws;',
+      }[s] || s
+    );
+  });
 }
 
 function escapeYAMLString(str: string): string {
@@ -1616,32 +1658,48 @@ function renderNotices(node: Reflection, str: string): string {
 }
 
 function renderComment(node: Reflection, style: string): string {
-  if (!node || !node.comment) return '';
+  if (!node) return '';
 
+  if (node.type === 'reflection') return renderComment(node.declaration, style);
+  if (node.kind === 65536 && node.signatures) {
+    // Type literal
+    return renderComment(node.signatures[0], style);
+  }
   const newLine = '\n';
-
   const result: string[] = [];
 
-  if (node.comment.shortText) {
-    result.push(renderNotices(node, node.comment.shortText));
-  }
-  if (node.comment.text) result.push(renderNotices(node, node.comment.text));
+  const flags = renderFlags(node, style);
+  if (flags) result.push(flags);
 
-  const remarks = getTag(node, 'remarks');
-  if (remarks) result.push(renderNotices(node, remarks));
+  if (node.comment) {
+    if (node.comment.shortText) {
+      result.push(renderNotices(node, node.comment.shortText));
+    }
+    if (node.comment.text) result.push(renderNotices(node, node.comment.text));
 
-  if (style !== 'block-inherit') {
-    if (node.comment.tags && node.comment.tags.length > 0) {
-      result.push('');
-      result.push(
-        node.comment.tags
-          .map((x) => renderTag(node, x.tag, x.text))
-          .filter((x) => !!x)
-          .join(newLine + newLine)
-      );
+    const remarks = getTag(node, 'remarks');
+    if (remarks) result.push(renderNotices(node, remarks));
+
+    if (style !== 'block-inherit') {
+      if (node.comment.tags && node.comment.tags.length > 0) {
+        result.push('');
+        result.push(
+          node.comment.tags
+            .map((x) => renderTag(node, x.tag, x.text))
+            .filter((x) => !!x)
+            .join(newLine + newLine)
+        );
+      }
     }
   }
-  return result.join(newLine);
+
+  let r = result.join(newLine);
+  if (node.kind === 1024 && node.type) {
+    // Bizarrely, the comment for properties are attached to the
+    // 'type' node
+    r += renderComment(node.type as Reflection, style);
+  }
+  return r;
 }
 
 function getModuleName(node): string {
@@ -1654,23 +1712,39 @@ function getModuleName(node): string {
 }
 
 function shouldIgnore(node: Reflection): boolean {
+  if (!node) return false;
   // @hidden and @ignore are synonyms. The nodes for these symbols are not
   // even created.
   // @internal will result in nodes being created, unless --strip-internal is
   // true (which it isn't).
   // @internal is in general a better tag, as it allows us to distinguish
-  // between an @internal symbols (which should not be documented) and an
+  // between an @internal symbol (which should not be documented) and an
   // external symbol (which has an external link)
+  if (
+    node.kind === 1024 &&
+    node.type &&
+    shouldIgnore(node.type as Reflection)
+  ) {
+    return true;
+  }
+  if (node.type === 'reflection' && shouldIgnore(node.declaration)) return true;
+  if (
+    node.kind === 65536 &&
+    node.signatures &&
+    shouldIgnore(node.signatures[0])
+  ) {
+    return true;
+  }
   return (
     hasTag(node, 'hidden') ||
     hasTag(node, 'ignore') ||
     hasTag(node, 'internal') ||
-    node.name[0] === '#' // Private symbols (starts with '#')...
+    node.name?.[0] === '#' // Private symbols (starts with '#')...
   );
 }
 
 /**
- * Render a card with a header, content and footer
+ * Render a card with a header, content
  */
 
 function renderCard(
@@ -1729,7 +1803,7 @@ function renderCard(
 }
 
 function renderSignature(name: string, node: Reflection): string {
-  let result = renderFlags(node);
+  let result = '';
 
   if (node.parameters) {
     const noComments = node.parameters.every((x) => !x.comment);
@@ -1746,7 +1820,7 @@ function renderSignature(name: string, node: Reflection): string {
         punct('(') +
         node.parameters
           .map((x) => {
-            let result = `<var>${x.name}</var>`;
+            let result = varTag(x.name);
             if (hasFlag(x, 'isRest')) {
               result = span('...', 'modifier') + result;
             }
@@ -1816,7 +1890,7 @@ function renderMethodCard(node: Reflection): string {
 }
 
 /**
- * Card for an accessor (get/set)
+ * Card for an accessor (getter/setter)
  */
 function renderAccessorCard(node: Reflection) {
   if (shouldIgnore(node)) return '';
@@ -1830,6 +1904,9 @@ function renderAccessorCard(node: Reflection) {
   getSignatures = getSignatures.filter((x) => !shouldIgnore(x));
   let setSignatures = (node.setSignature as Reflection[]) ?? [];
   setSignatures = setSignatures.filter((x) => !shouldIgnore(x));
+
+  if (getSignatures.length === 0 && setSignatures.length === 0) return '';
+
   if (getSignatures.length === 1) {
     if (setSignatures.length === 1) {
       const gSig = render(getSignatures[0].type as Reflection, 'inline');
@@ -1837,61 +1914,34 @@ function renderAccessorCard(node: Reflection) {
         setSignatures[0].parameters[0].type as Reflection,
         'inline'
       );
-      if (gSig === sSig) {
-        simpleAccessor = true;
-      }
+      if (gSig === sSig) simpleAccessor = true;
     } else if (setSignatures.length === 0) {
       simpleAccessor = true;
     }
   }
-  if (simpleAccessor) {
-    // Check that there is only one entry with comments
-    if (node.comment) {
-      const mainComment = renderComment(node, 'block');
-      if (
-        getSignatures?.[0].comment &&
-        renderComment(getSignatures[0], 'block') !== mainComment
-      ) {
-        simpleAccessor = false;
-      } else if (
-        setSignatures[0]?.comment &&
-        renderComment(setSignatures[0], 'block') !== mainComment
-      ) {
-        simpleAccessor = false;
-      }
-    } else {
-      if (getSignatures[0]?.comment) {
-        // The setter 'inherits' the getter comment, only consider the comment if different for the setter
-        if (
-          setSignatures[0]?.comment &&
-          renderComment(setSignatures[0], 'block') !==
-            renderComment(getSignatures[0], 'block')
-        ) {
-          simpleAccessor = false;
-        }
-      }
-    }
+
+  // Collect the comments
+  let primaryComment = '';
+  let comments = '';
+
+  for (const sig of getSignatures) {
+    let comment = renderComment(sig, 'block');
+    if (primaryComment && comment === primaryComment) comment = '';
+    else if (!primaryComment) primaryComment = comment;
+    comments += comment;
   }
 
+  for (const sig of setSignatures) {
+    let comment = renderComment(sig, 'block');
+    if (primaryComment && comment === primaryComment) comment = '';
+    else if (!primaryComment) primaryComment = comment;
+    comments += comment;
+  }
+
+  comments = div(renderComment(node, 'block') + comments);
+
   if (simpleAccessor) {
-    const mainComment = renderComment(node, 'block');
-    let comments = mainComment;
-    let getterComment = '';
-    if (getSignatures?.[0].comment) {
-      getterComment = renderComment(getSignatures[0], 'block');
-      if (mainComment && getterComment !== mainComment) {
-        comments += getterComment;
-      }
-    }
-    if (setSignatures[0]?.comment) {
-      const setterComment = renderComment(setSignatures[0], 'block');
-      if (getterComment && setterComment !== getterComment) {
-        comments += setterComment;
-      }
-    }
-
     let displayName = strong(node.name) + punct(': ');
-
     displayName += render(getSignatures[0].type as Reflection, 'inline');
 
     if (node.getSignature && !node.setSignature) {
@@ -1906,38 +1956,29 @@ function renderAccessorCard(node: Reflection) {
   }
 
   const displayName = strong(node.name);
-  let body = div(renderComment(node, 'block'));
 
-  let primaryComment = '';
+  let body = '';
 
   for (const sig of getSignatures) {
-    let comment = renderComment(sig, 'block');
-    if (primaryComment && comment === primaryComment) comment = '';
-    else if (!primaryComment) primaryComment = comment;
     body += div(
       keyword('get ') +
         displayName +
         punct('(): ') +
-        render(sig.type as Reflection, 'inline') +
-        comment
+        render(sig.type as Reflection, 'inline')
     );
   }
 
   for (const sig of setSignatures) {
-    let comment = renderComment(sig, 'block');
-    if (primaryComment && comment === primaryComment) comment = '';
-    else if (!primaryComment) primaryComment = comment;
     body += div(
       keyword('set ') +
         displayName +
         punct('(') +
         render(sig.parameters[0].type as Reflection, 'inline') +
-        punct(')') +
-        comment
+        punct(')')
     );
   }
 
-  return renderCard(node, displayName, div(body));
+  return renderCard(node, displayName, body + comments);
 }
 
 /**
@@ -1965,16 +2006,15 @@ function renderClassSection(node: Reflection): string {
   const permalink = makePermalink(node);
   const parent = getParent(node);
 
-  const result =
-    heading(
-      2,
-      parent.kind > 2 ? getQualifiedName(parent) : '',
-      getQualifiedName(node),
-      permalink,
-      {
-        deprecated: hasTag(node, 'deprecated'),
-      }
-    ) + renderFlags(node);
+  const result = heading(
+    2,
+    parent.kind > 2 ? getQualifiedName(parent) : '',
+    getQualifiedName(node),
+    permalink,
+    {
+      deprecated: hasTag(node, 'deprecated'),
+    }
+  );
 
   let body = '';
   if (node.extendedTypes) {
@@ -2054,21 +2094,20 @@ function renderClassCard(node) {
           let r = encodeURIComponent(permalink.anchor) + '">';
           if (x.kind === 2048) {
             // Method
-            r +=
-              x.signatures
-                .map((signature) => {
-                  let sigResult = renderFlags(x, 'inline') + strong(x.name);
-                  if (hasFlag(x, 'isOptional')) {
-                    sigResult += span('?', 'modifier');
-                  }
-                  sigResult +=
-                    renderPermalinkAnchor(permalink) +
-                    render(signature) +
-                    '</dt><dd>' +
-                    renderComment(signature, 'block');
-                  return sigResult;
-                })
-                .join('</dd><dt>') + '</dd>';
+            r += x.signatures
+              .map((signature) => {
+                let sigResult = strong(x.name);
+                if (hasFlag(x, 'isOptional')) {
+                  sigResult += span('?', 'modifier');
+                }
+                sigResult +=
+                  renderPermalinkAnchor(permalink) +
+                  render(signature) +
+                  '</dt><dd>' +
+                  renderComment(signature, 'block');
+                return sigResult;
+              })
+              .join('</dd><dt>');
           } else if (x.kind === 1024) {
             // Property
             r += strong(x.name);
@@ -2149,7 +2188,7 @@ function renderCommandCard(node) {
         '\n<dt>\n' +
         params
           .map((param) => {
-            let r = strong('<var>' + param.name + '</var>');
+            let r = varTag(param.name);
             const typeDef = render(param.type, 'block');
             if (typeDef) {
               r += punct(': ') + typeDef;
@@ -2164,7 +2203,7 @@ function renderCommandCard(node) {
     if (signature.type && hasTag(node, 'returns')) {
       // The is a return type
       result += '\n<dt>\n';
-      result += strong('→ ') + render(signature.type);
+      result += varTag('→ ') + render(signature.type);
       result += '\n</dt><dd>\n';
       if (hasTag(node, 'returns')) {
         result += renderNotices(node, getTag(node, 'returns'));
@@ -2374,7 +2413,7 @@ function render(node: Reflection | number, style = 'inline'): string {
   // can get called with an undefined node. Fail gracefully.
   // This happens for example with:
   //
-  // ```
+  // ```ts
   //   export function foo(options: { bar: boolean })
   // ```
   //
@@ -2506,9 +2545,9 @@ abstract class Animal {
       let typeArguments = '';
       if (node.typeArguments) {
         typeArguments =
-          punct('&lt;') +
+          punct('<') +
           node.typeArguments.map((x) => render(x)).join(punct(', ')) +
-          punct('&gt;');
+          punct('>');
       }
 
       // Enum, Class, Interface, TypeAlias
@@ -2648,7 +2687,6 @@ abstract class Animal {
         result += punct(' = ') + node.defaultValue;
       }
       result += '</dt><dd>';
-      result += renderFlags(node);
       result += renderComment(node, style);
       result += '</dd>';
       break;
@@ -2685,9 +2723,9 @@ abstract class Animal {
         if (node.signatures) {
           result += node.signatures
             .map((signature) => {
-              let result = renderFlags(signature);
               // Display the "short" signature (kind 4096)
-              result += div(render(signature, 'inline'), 'code');
+              let result = div(render(signature, 'inline'), 'code');
+              result += renderComment(signature, style);
 
               // Display info about each of the params...
               result += render(signature, 'block');
@@ -2781,7 +2819,7 @@ abstract class Animal {
               '\n<dt>\n' +
               node.parameters
                 .map((param) => {
-                  let r = strong('<var>' + param.name + '</var>');
+                  let r = varTag(param.name);
                   if (hasFlag(param, 'isRest')) {
                     r = span('...', 'modifier') + r;
                   }
@@ -2804,7 +2842,7 @@ abstract class Animal {
             (node.comment?.returns || !isVoid(node.type as Reflection))
           ) {
             result += '\n<dt>\n';
-            result += strong('→ ') + render(node.type as Reflection);
+            result += varTag('→ ') + render(node.type as Reflection);
             result += '\n</dt><dd>\n';
             if (node.comment?.returns) {
               result += renderNotices(node, node.comment.returns);
@@ -2837,7 +2875,7 @@ abstract class Animal {
       if (hasFlag(node, 'isRest')) {
         result += span('...', 'modifier');
       }
-      result += `<var>${node.name}</var>`;
+      result += varTag(node.name);
       if (hasFlag(node, 'isOptional')) {
         result += span('?', 'modifier');
       }
@@ -2851,31 +2889,22 @@ abstract class Animal {
       } else if (node.children || node.indexSignature) {
         // E.g. `{ p: T; q: U }`
         if (style === 'block' || style === 'block-inherit') {
-          result += '<div><dl>';
+          result += '<div><dl class="typelit">';
           if (node.children) {
-            result +=
-              '<dt>' +
-              node.children
-                .map((x) => {
-                  let dt = render(x) + punct(';');
-                  if (hasTag(x, 'deprecated')) {
-                    dt = span(dt, 'deprecated');
-                  }
-                  const dd = renderFlags(x) + renderComment(x, style);
-                  return dt + '</dt><dd>' + dd;
-                })
-                .join('</dd><dt>');
-            result += '</dd>';
+            result += node.children
+              .map((x) => {
+                let dt = render(x) + punct(';');
+                if (hasTag(x, 'deprecated')) {
+                  dt += span(dt, 'deprecated');
+                }
+                return `<dt>${dt}</dt><dd>${renderComment(x, style)}</dd>`;
+              })
+              .join('');
           }
           if (node.indexSignature) {
-            result += '<dt>';
-            // result += node.indexSignature
-            //   .map((x) => render(x))
-            //   .join(punct(';') + '</dt><dd>');
-            result += render(node.indexSignature);
-            result += '</dd>';
+            result += `<dt>${render(node.indexSignature)}}</dt><dd></dd>`;
           }
-          result += '</dl>' + '</div>';
+          result += '</dl></div>';
         } else if (style === 'inline') {
           result += punct('{');
           if (node.children) {
@@ -2883,9 +2912,6 @@ abstract class Animal {
           }
           if (node.indexSignature) {
             result += render(node.indexSignature);
-            // result += node.indexSignature
-            //   .map((x) => render(x))
-            //   .join(punct('; '));
           }
           result += punct('}');
         } else {
@@ -2934,9 +2960,9 @@ abstract class Animal {
         const def = render(node.type as Reflection, style);
         result = '';
         if (node.typeParameter) {
-          result += punct('&lt;');
+          result += punct('<');
           result += node.typeParameter.map((x) => render(x)).join(punct(', '));
-          result += punct('&gt;');
+          result += punct('>');
           if (def) result += punct(' = ');
         }
         result += def;
