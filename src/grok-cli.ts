@@ -173,7 +173,7 @@ function build(argv): void {
 
   .index ul,
   ul.index {
-    column-width: 28ex; // Approx. maximum length of a symbol (in char)
+    column-width: 28ex; /* Approx. maximum length of a symbol (in char) */
     column-gap: 20px;
     padding: 0;
     list-style: none;
