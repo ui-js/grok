@@ -397,7 +397,12 @@ function complexity(node: Reflection): number {
 
   // Function sig, ctor sig, accessor
   if (node.kind === 4096 || node.kind === 16384 || node.kind === 524288) {
-    return 1 + node.parameters.reduce((acc, x) => acc + complexity(x), 0);
+    let result = 1;
+    if (node.parameters) {
+      result += node.parameters.reduce((acc, x) => acc + complexity(x), 0);
+    }
+    if (node.type) result += complexity(node.type as Reflection);
+    return result;
   }
 
   // Parameter
@@ -415,8 +420,8 @@ function complexity(node: Reflection): number {
     }
   }
 
+  // Property
   if (node.kind === 1024) {
-    // Property
     return 1 + complexity(node.type as Reflection);
   }
 
@@ -1661,7 +1666,7 @@ function renderComment(node: Reflection, style: string): string {
   if (!node) return '';
 
   if (node.type === 'reflection') return renderComment(node.declaration, style);
-  if (node.kind === 65536 && node.signatures) {
+  if (!node.comment && node.kind === 65536 && node.signatures) {
     // Type literal
     return renderComment(node.signatures[0], style);
   }
@@ -1694,13 +1699,13 @@ function renderComment(node: Reflection, style: string): string {
   }
 
   let r = result.join(newLine);
-  if (node.kind === 1024 && node.type) {
+  if (!node.comment && node.kind === 1024 && node.type) {
     // Bizarrely, the comment for properties are attached to the
     // 'type' node
     r += renderComment(node.type as Reflection, style);
   }
 
-  if (node.kind === 2048 && node.signatures) {
+  if (!node.comment && node.kind === 2048 && node.signatures) {
     const sigComment = renderComment(node.signatures[0] as Reflection, style);
     if (sigComment !== r) r += sigComment;
   }
@@ -1810,18 +1815,16 @@ function renderCard(
 function renderSignature(name: string, node: Reflection): string {
   let result = '';
 
-  if (node.parameters) {
-    const noComments = node.parameters.every((x) => !x.comment);
-    if (noComments && complexity(node) < 5) {
-      result += div(name + render(node, 'inline'), 'code');
-      result += renderComment(node, 'block');
-      return div(result);
-    }
+  const noComments = node.parameters?.every((x) => !x.comment) ?? true;
+  if (noComments && complexity(node) < 10) {
+    result += div(name + render(node, 'inline'), 'code');
+    result += renderComment(node, 'block');
+    return div(result);
   }
 
   if (node.parameters) {
     result += div(
-      varTag(name) +
+      name +
         punct('(') +
         node.parameters
           .map((x) => {
@@ -1881,7 +1884,7 @@ function renderMethodCard(node: Reflection): string {
   displayName = shortName + punct('()');
 
   const body =
-    renderComment(node, 'block') +
+    // renderComment(node, 'block') +
     div(
       signatures
         .map((signature) => renderSignature(shortName, signature))
@@ -1926,21 +1929,12 @@ function renderAccessorCard(node: Reflection) {
   let primaryComment = '';
   let comments = '';
 
-  for (const sig of getSignatures) {
+  for (const sig of [...getSignatures, ...setSignatures]) {
     let comment = renderComment(sig, 'block');
     if (primaryComment && comment === primaryComment) comment = '';
-    else if (!primaryComment) primaryComment = comment;
+    if (!primaryComment) primaryComment = comment;
     comments += comment;
   }
-
-  for (const sig of setSignatures) {
-    let comment = renderComment(sig, 'block');
-    if (primaryComment && comment === primaryComment) comment = '';
-    else if (!primaryComment) primaryComment = comment;
-    comments += comment;
-  }
-
-  comments = div(renderComment(node, 'block') + comments);
 
   if (simpleAccessor) {
     let displayName = varTag(node.name) + punct(': ');
@@ -1954,7 +1948,7 @@ function renderAccessorCard(node: Reflection) {
       displayName += `&nbsp;&nbsp;${span('write only', 'modifier-tag')}`;
     }
 
-    return renderCard(node, displayName, comments);
+    return renderCard(node, displayName, div(comments));
   }
 
   const displayName = varTag(node.name);
