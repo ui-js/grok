@@ -236,6 +236,10 @@ function span(
     | 'stack'
     | 'flags'
     | 'keyword'
+    | 'variable'
+    | 'function'
+    | 'type'
+    | 'constant'
     | 'modifier'
     | 'modifier-tag'
     | 'red modifier-tag'
@@ -243,7 +247,7 @@ function span(
     | 'tag-name'
     | 'class-label'
     | 'string-literal'
-    | 'num-literal'
+    | 'numeric-literal'
     | 'deprecated'
     | 'highlighting-mark-container'
     | ''
@@ -273,6 +277,9 @@ function strong(s: string): string {
 }
 
 function varTag(s: string): string {
+  if (s === 'complexValue') {
+    console.error('stop');
+  }
   if (s.startsWith('→')) return `<var class="return">${s}</var>`;
 
   return `<var>${escapeHtml(s)}</var>`;
@@ -296,7 +303,7 @@ function literalToString(v: any): string {
     return v ? keyword('true') : keyword('false');
   }
   if (typeof v === 'number') {
-    return span(escapeHtml(v.toString()), 'num-literal');
+    return span(escapeHtml(v.toString()), 'numeric-literal');
   }
   if (typeof v === 'string') return quotedString(v);
   // @todo: could do object literal, symbols...
@@ -1315,7 +1322,7 @@ function getQualifiedName(node: Reflection): string {
   if (!node || node.kind === 0) return '';
   if (node.kind === 128 && hasFlag(node, 'isAbstract')) {
     // Class
-    return keyword('abstract class ') + strong(getName(node));
+    return keyword('abstract class ') + span(getName(node), 'type');
   }
   return (
     keyword(
@@ -1326,7 +1333,7 @@ function getQualifiedName(node: Reflection): string {
         2: 'namespace ',
         1: 'module ',
       }[node.kind] ?? ''
-    ) + strong(getName(node))
+    ) + span(getName(node), 'type')
   );
 }
 
@@ -1769,27 +1776,17 @@ function renderCard(
     displayName = strong(getName(node));
     // If enum, variable (property), function (method), class,
     // interface
-    if (
-      node.kind === 4 ||
-      node.kind === 32 ||
-      node.kind === 64 ||
-      node.kind === 128 ||
-      node.kind === 256 ||
-      node.kind === 1024 ||
-      node.kind === 2048
-    ) {
-      // if (
-      //   parent &&
-      //   ((parent.kind === 2 && !/^"(.*)"$/.test(parent.name)) ||
-      //     parent.kind === 128 ||
-      //     parent.kind === 256)
-      // ) {
-      //   // Parent is a namespace or class or interface
-      //   displayName = getName(parent) + punct('.') + displayName;
-      // }
+    if (node.kind === 32 || node.kind === 1024) {
+      displayName = span(displayName, 'variable');
     }
+    if (node.kind === 4 || node.kind === 128 || node.kind === 256) {
+      displayName = span(displayName, 'type');
+    }
+
     // Function
-    if (node.kind === 64) displayName += punct('()');
+    if (node.kind === 64 || node.kind === 2048 || node.kind === 4096) {
+      displayName = span(displayName, 'function') + punct('()');
+    }
   }
 
   const permalink = makePermalink(node);
@@ -1877,9 +1874,9 @@ function renderMethodCard(node: Reflection): string {
   if (node.kind === 512) {
     // Constructor
     // Constructors *always* have a (class) parent
-    shortName = keyword('new ') + varTag(parent.name);
+    shortName = keyword('new ') + span(parent.name, 'type');
   } else {
-    shortName = varTag(node.name);
+    shortName = span(node.name, 'function');
   }
   displayName = shortName + punct('()');
 
@@ -2212,7 +2209,9 @@ function renderCommandCard(node) {
     node,
     // Note: the '&#8203;' (zws) after 'command' is important to ensure
     // that double-clicking on the name selects only the name
-    span('command', 'modifier-tag') + '&#8203;' + strong(node.name),
+    span('command', 'modifier-tag') +
+      '&#8203;' +
+      span(strong(node.name), 'constant'),
     result + renderComment(node, 'block')
   );
 }
@@ -2230,14 +2229,7 @@ function renderPropertyCard(node) {
   const result = renderCommandCard(node);
   if (result) return result;
 
-  const displayName = strong(node.name);
-  // let shortName = '';
-  // if (parent && (parent.kind & (1 | 2 | 4 | 128 | 256)) !== 0) {
-  //   // Parent is a module, namespace, enum, class or interface
-  //   // Function or method
-  //   displayName = strong(node.name);
-  //   // displayName = parent.name + '.' + shortName;
-  // }
+  const displayName = span(strong(node.name), 'variable');
   if (complexity(node) < 5) {
     return renderCard(
       node,
@@ -2508,7 +2500,7 @@ abstract class Animal {
 
     if (node.type === 'intrinsic') {
       // E.g. "number", "string", etc...
-      return keyword(node.name);
+      return span(node.name, 'type');
     }
 
     if (node.type === 'predicate') {
@@ -2529,7 +2521,9 @@ abstract class Animal {
 
     if (node.type === 'named-tuple-member') {
       //e.g. [start: number, end: number]
-      return strong(node.name) + punct(': ') + render(node.element);
+      return (
+        span(strong(node.name), 'constant') + punct(': ') + render(node.element)
+      );
     }
 
     if (node.type === 'reference') {
@@ -2564,8 +2558,8 @@ abstract class Animal {
             makePermalink(candidate),
             candidate.kind === 16
               ? // For enum members, include the parent (the Enum) name
-                parent.name + '.' + node.name
-              : node.name
+                span(parent.name, 'type') + punct('.') + span(node.name, 'type')
+              : span(node.name, 'type')
           ) + typeArguments
         );
       }
@@ -2578,15 +2572,16 @@ abstract class Animal {
       );
       if (candidate) {
         return (
-          renderPermalink(makePermalink(candidate), node.name) + typeArguments
+          renderPermalink(makePermalink(candidate), span(node.name, 'type')) +
+          typeArguments
         );
       }
       if (candidate) {
-        return node.name + typeArguments; // Don't render, it's a reference, we just need its name
+        return span(node.name, 'type') + typeArguments; // Don't render, it's a reference, we just need its name
       }
 
       const url = externalLink(node.name);
-      if (!url) return node.name + typeArguments;
+      if (!url) return span(node.name, 'type') + typeArguments;
       return (
         `<a href="${externalLink(node.name)}" class="externallink">${
           node.name
@@ -2676,7 +2671,7 @@ abstract class Animal {
 
     case 16: // Enum Member
       result = `<dt id="${encodeURIComponent(makePermalink(node).anchor)}">`;
-      result += strong(node.name);
+      result += span(strong(node.name), 'constant');
       if (typeof node.defaultValue === 'string') {
         result += punct(' = ') + node.defaultValue;
       }
@@ -2694,7 +2689,7 @@ abstract class Animal {
           div(render(node, 'block')) + renderComment(node, 'block')
         );
       } else {
-        result += strong(node.name);
+        result += span(strong(node.name), 'variable');
         if (hasFlag(node, 'isOptional')) result += span('?', 'modifier');
         if ((node.type as Reflection)?.type === 'unknown') {
           result += punct(' = ');
@@ -2738,7 +2733,7 @@ abstract class Animal {
 
         result = renderClassCard(node);
       } else {
-        result = node.name;
+        result = span(node.name, 'type');
       }
       break;
 
@@ -2751,7 +2746,7 @@ abstract class Animal {
 
         result = renderClassCard(node);
       } else {
-        result = node.name;
+        result = span(node.name, 'type');
       }
       break;
 
@@ -2770,8 +2765,8 @@ abstract class Animal {
         // If not a private symbol (starts with '#')...
         if (node.name[0] !== '#') {
           result =
-            (parent ? parent.name + '.' : '') +
-            node.name +
+            (parent ? span(parent.name, 'type') + '.' : '') +
+            span(node.name, 'variable') +
             punct(': ') +
             render(node.type as Reflection, style);
         }
@@ -2782,7 +2777,7 @@ abstract class Animal {
       if (style === 'card' || style === 'section') {
         result = renderMethodCard(node);
       } else {
-        result = node.name;
+        result = span(strong(node.name), 'function');
         if (hasFlag(node, 'isOptional')) result += span('?', 'modifier');
         result += punct(': ');
         result += node.signatures.map((x) => render(x, 'inline')).join('; ');
@@ -2860,7 +2855,7 @@ abstract class Animal {
       // E.g. "foo: string" in "[foo: string]: string"
       // Also "a:T" in "f(a:T)"
       if (hasFlag(node, 'isRest')) result += span('...', 'modifier');
-      result += varTag(node.name);
+      result += span(node.name, 'constant');
       if (hasFlag(node, 'isOptional')) result += span('?', 'modifier');
 
       result += punct(': ') + render(node.type as Reflection);
