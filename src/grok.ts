@@ -2585,10 +2585,7 @@ abstract class Animal {
       return (
         `<a href="${externalLink(node.name)}" class="externallink">${
           node.name
-        }` +
-        '<svg><use xlink:href="#external-link"></use></svg>' +
-        '</a>' +
-        typeArguments
+        }<svg><use xlink:href="#external-link"></use></svg></a>` + typeArguments
       );
     }
 
