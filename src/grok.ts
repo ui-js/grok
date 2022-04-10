@@ -277,9 +277,6 @@ function strong(s: string): string {
 }
 
 function varTag(s: string): string {
-  if (s === 'complexValue') {
-    console.error('stop');
-  }
   if (s.startsWith('→')) return `<var class="return">${s}</var>`;
 
   return `<var>${escapeHtml(s)}</var>`;
