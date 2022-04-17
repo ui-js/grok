@@ -15,9 +15,13 @@
       "smartStep": true,
       // "outFiles": ["${workspaceFolder}/bin/*.js"],
       "args": [
-        "../compute-engine/",
+        "../mathlive/",
         "--inFile",
-        "./src/compute-engine.ts",
+        "./src/mathlive.ts",
+
+        // "../compute-engine/",
+        // "--inFile",
+        // "./src/compute-engine.ts",
 
         // "../mathlive/",
         // "--inFile",
