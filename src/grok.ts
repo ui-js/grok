@@ -321,8 +321,7 @@ function section(
   if (options?.className) {
     result += ' class="' + options.className + '"';
   }
-  result += '>' + content;
-  return result + '\n</section>\n';
+  return result + '>' + content + '\n</section>\n';
 }
 
 function list(
@@ -2357,7 +2356,7 @@ function renderGroup(node: Reflection, groupCollection: Reflection[]): string {
         .filter((x) => !extendedType.includes(x.name)) // ??? The parent class is sometimes present as a static property of the subclass
         .map((x) => render(x, 'section'))
         .join('');
-      return r;
+      return topic.title ? section(r) : r;
     })
     .join('');
   if (!body) return '';
