@@ -16,9 +16,35 @@ npm install --global @ui-js/grok
 
 ## Usage
 
+A `.tsconfig` file describing your project must be included. For example, if the
+interface file to document is `index.d.ts`:
+
+```json
+{
+  "compilerOptions": {
+    "declaration": true,
+    "emitDecoratorMetadata": false,
+    "esModuleInterop": true,
+    "experimentalDecorators": false,
+    "incremental": true,
+    "lib": ["es2020"],
+    "module": "es2020",
+    "moduleResolution": "node",
+    "noImplicitAny": false,
+    "noLib": false,
+    "removeComments": false,
+    "sourceMap": true,
+    "strictNullChecks": true,
+    "target": "es2020",
+    "types": []
+  },
+  "include": ["index.d.ts"]
+}
+```
+
 ```bash
-# Create documentation for the .d.ts files in ./dist into the ./docs folder
-grok ./dist --outDir docs
+# Create documentation for the .d.ts file into the ./docs folder
+grok index.d.ts --outDir docs
 ```
 
 ## Configuration
