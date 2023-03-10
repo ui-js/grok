@@ -33,6 +33,36 @@
         "--verbose",
         "--ignore-errors"
       ]
+    },
+    {
+      "name": "Grok Compute Engine",
+      "request": "launch",
+      "type": "node",
+      "skipFiles": ["<node_internals>/**"],
+      "program": "${workspaceFolder}/src/grok-cli.ts",
+      "preLaunchTask": "npm: build",
+      "sourceMaps": true,
+      "smartStep": true,
+      // "outFiles": ["${workspaceFolder}/bin/*.js"],
+      "args": [
+        "../compute-engine/",
+        "--inFile",
+        "./src/compute-engine.ts",
+
+        // "../compute-engine/",
+        // "--inFile",
+        // "./src/compute-engine.ts",
+
+        // "../mathlive/",
+        // "--inFile",
+        // "./src/mathlive.ts",
+
+        // "test/enum-test.d.ts",
+        "--outDir",
+        "build",
+        "--verbose",
+        "--ignore-errors"
+      ]
     }
   ]
 }

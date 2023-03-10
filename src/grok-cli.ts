@@ -13,13 +13,13 @@ const writeFileSync = fs.writeFileSync;
 const { cosmiconfigSync } = require('cosmiconfig');
 const configParser = cosmiconfigSync('grok');
 
-const pkg = require('../package.json');
+// const pkg = require('../package.json');
 // require('please-upgrade-node')(pkg);
 
-const updateNotifier = require('update-notifier');
-// Display an update message
-// if a more recent version of the package is available.
-updateNotifier({ pkg, shouldNotifyInNpmScript: true }).notify();
+// const updateNotifier = require('update-notifier');
+// // Display an update message
+// // if a more recent version of the package is available.
+// updateNotifier({ pkg, shouldNotifyInNpmScript: true }).notify();
 
 /**
  * Merge "source" into object by doing a deep copy of enumerable properties.
